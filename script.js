@@ -571,6 +571,7 @@ function initPlayer(){
     x: 0,
     y: 0,
     r: 20,
+    targetR: 20,       // <-- taille cible pour interpolation
     color: "limegreen",
     speed: 3,
     score: 0,
