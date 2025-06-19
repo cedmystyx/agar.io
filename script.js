@@ -339,25 +339,25 @@ function eatCheck(){
   }
 
   // Joueur mange nourriture
-  for(let i=foods.length-1; i>=0; i--){
-    let food = foods[i];
-    if(dist(player, food) < player.r + food.r){
-      foods.splice(i,1);
-      player.r = Math.min(150, player.r + 0.5);
-      spawnRandomFood(1);
-    }
+for(let i=foods.length-1; i>=0; i--){
+  let food = foods[i];
+  if(dist(player, food) < player.r + food.r){
+    foods.splice(i,1);
+    player.targetR = Math.min(150, player.targetR + 0.5);  // <-- ici
+    spawnRandomFood(1);
   }
+}
 
-  // Joueur mange bots plus petits
-  for(let i=bots.length-1; i>=0; i--){
-    let bot = bots[i];
-    if(bot.respawnTimeout) continue;
-    if(bot !== player && dist(player, bot) < player.r && player.r > bot.r*1.1){
-      player.score += Math.floor(bot.r);
-      player.r = Math.min(150, player.r + bot.r*0.6);
-      removeBot(i);
-    }
+// Joueur mange bots plus petits
+for(let i=bots.length-1; i>=0; i--){
+  let bot = bots[i];
+  if(bot.respawnTimeout) continue;
+  if(bot !== player && dist(player, bot) < player.r && player.r > bot.r*1.1){
+    player.score += Math.floor(bot.r);
+    player.targetR = Math.min(150, player.targetR + bot.r*0.6);  // <-- ici
+    removeBot(i);
   }
+}
 
   // Bots mangent nourriture
   bots.forEach(bot => {
