@@ -4,10 +4,33 @@
   <meta charset="UTF-8" />
   <title>Mytox.io</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="https://i.imgur.com/GDAdER0.png" type="image/png" />
 </head>
 <body>
-  <div id="menu">
-    <h1>Mytox.io</h1>
+  <div id="menu" style="text-align:center; padding-top: 20px;">
+
+    <!-- 🎨 Logo SVG en remplacement du texte -->
+    <div id="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="120" viewBox="0 0 500 120">
+        <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+              font-family="Impact, Arial Black, sans-serif"
+              font-size="60"
+              fill="url(#toxicGradient)"
+              stroke="#00ff00"
+              stroke-width="1.5"
+              letter-spacing="5">
+          MYTOX.IO
+        </text>
+        <defs>
+          <linearGradient id="toxicGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#00ff00; stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#007f00; stop-opacity:1" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+
+    <!-- Menu d'entrée du joueur -->
     <label for="pseudo">Pseudo :</label><br />
     <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" /><br />
     <label for="colorPicker">Choisis ta couleur :</label><br />
