@@ -16,11 +16,31 @@ const menuGradeSpan = document.getElementById("menuGrade");
 const menuWinsSpan = document.getElementById("menuWins");
 const menuLossesSpan = document.getElementById("menuLosses");
 
+// --- Modification ici : support souris + tactile ---
 let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+// Souris (desktop)
 window.addEventListener("mousemove", (e) => {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
+
+// Tactile (mobile/tablette)
+window.addEventListener("touchmove", (e) => {
+  if (e.touches.length > 0) {
+    mouse.x = e.touches[0].clientX;
+    mouse.y = e.touches[0].clientY;
+  }
+}, { passive: true });
+
+// Plein écran / resize dynamique canvas
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+// --- Fin modif ---
 
 const MAX_BOTS = 20;
 const FOOD_COUNT = 300;  // augmenté de 100 à 300
@@ -478,184 +498,4 @@ function draw() {
     // Dessiner étoile (forme virus) au centre du cercle rouge
     ctx.strokeStyle = 'yellow';
     ctx.lineWidth = 3;
-    drawStar(ctx, virus.x, virus.y, 5, virus.r * 0.8, virus.r * 0.4);
-  }
-
-  // Dessiner bonus
-  drawBonuses();
-
-  // Dessiner joueur
-  ctx.fillStyle = player.color;
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Dessiner barrières tuyaux électriques
-  drawElectricPipes();
-
-  ctx.restore();
-
-  scoreDiv.textContent = `Score: ${player.score} | Niveau: ${player.level} | Grade: ${getGrade(player.level)} | Rank: ${getRank(stats.wins, stats.losses)} | Wins: ${stats.wins} | Losses: ${stats.losses}`;
-
-  animationFrameId = requestAnimationFrame(() => {
-    let now = performance.now();
-    let delta = now - lastFrameTime;
-    lastFrameTime = now;
-    updateGame(delta);
-    draw();
-  });
-}
-
-// Fonction utilitaire pour dessiner une étoile (virus)
-function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
-  let rot = Math.PI / 2 * 3;
-  let x = cx;
-  let y = cy;
-  let step = Math.PI / spikes;
-
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - outerRadius);
-  for (let i = 0; i < spikes; i++) {
-    x = cx + Math.cos(rot) * outerRadius;
-    y = cy + Math.sin(rot) * outerRadius;
-    ctx.lineTo(x, y);
-    rot += step;
-
-    x = cx + Math.cos(rot) * innerRadius;
-    y = cy + Math.sin(rot) * innerRadius;
-    ctx.lineTo(x, y);
-    rot += step;
-  }
-  ctx.lineTo(cx, cy - outerRadius);
-  ctx.closePath();
-  ctx.stroke();
-  ctx.fill();
-}
-
-// Dessiner barrières "tuyaux électriques" sur les bords de la map
-function drawElectricPipes() {
-  const pipeColor = "#00FFFF";
-  const pipeGlowColor = "rgba(0, 255, 255, 0.5)";
-  const pipeWidth = 20;
-  const glowWidth = 30;
-  const spacing = 30;
-
-  ctx.lineCap = "round";
-
-  // Bord supérieur
-  for(let x = -HALF_MAP; x < HALF_MAP; x += spacing){
-    ctx.strokeStyle = pipeGlowColor;
-    ctx.lineWidth = glowWidth;
-    ctx.beginPath();
-    ctx.moveTo(x, -HALF_MAP);
-    ctx.lineTo(x + spacing/2, -HALF_MAP);
-    ctx.stroke();
-
-    ctx.strokeStyle = pipeColor;
-    ctx.lineWidth = pipeWidth;
-    ctx.beginPath();
-    ctx.moveTo(x, -HALF_MAP);
-    ctx.lineTo(x + spacing/2, -HALF_MAP);
-    ctx.stroke();
-  }
-
-  // Bord inférieur
-  for(let x = -HALF_MAP; x < HALF_MAP; x += spacing){
-    ctx.strokeStyle = pipeGlowColor;
-    ctx.lineWidth = glowWidth;
-    ctx.beginPath();
-    ctx.moveTo(x, HALF_MAP);
-    ctx.lineTo(x + spacing/2, HALF_MAP);
-    ctx.stroke();
-
-    ctx.strokeStyle = pipeColor;
-    ctx.lineWidth = pipeWidth;
-    ctx.beginPath();
-    ctx.moveTo(x, HALF_MAP);
-    ctx.lineTo(x + spacing/2, HALF_MAP);
-    ctx.stroke();
-  }
-
-  // Bord gauche
-  for(let y = -HALF_MAP; y < HALF_MAP; y += spacing){
-    ctx.strokeStyle = pipeGlowColor;
-    ctx.lineWidth = glowWidth;
-    ctx.beginPath();
-    ctx.moveTo(-HALF_MAP, y);
-    ctx.lineTo(-HALF_MAP, y + spacing/2);
-    ctx.stroke();
-
-    ctx.strokeStyle = pipeColor;
-    ctx.lineWidth = pipeWidth;
-    ctx.beginPath();
-    ctx.moveTo(-HALF_MAP, y);
-    ctx.lineTo(-HALF_MAP, y + spacing/2);
-    ctx.stroke();
-  }
-
-  // Bord droit
-  for(let y = -HALF_MAP; y < HALF_MAP; y += spacing){
-    ctx.strokeStyle = pipeGlowColor;
-    ctx.lineWidth = glowWidth;
-    ctx.beginPath();
-    ctx.moveTo(HALF_MAP, y);
-    ctx.lineTo(HALF_MAP, y + spacing/2);
-    ctx.stroke();
-
-    ctx.strokeStyle = pipeColor;
-    ctx.lineWidth = pipeWidth;
-    ctx.beginPath();
-    ctx.moveTo(HALF_MAP, y);
-    ctx.lineTo(HALF_MAP, y + spacing/2);
-    ctx.stroke();
-  }
-}
-
-function startGame() {
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
-
-  // Réinitialisation totale niveau/score/statistiques partie, pas de sauvegarde !
-  player = {
-    x: 0,
-    y: 0,
-    r: 20,
-    color: colorPicker.value,
-    speed: 3,
-    score: 0,
-    level: 1,
-    shield: false,
-  };
-
-  spawnFood();
-  spawnBots(true);
-  spawnVirus();
-  bonuses = [];
-
-  gameStartTime = performance.now();
-  gameOver = false;
-
-  menuLevelSpan.textContent = player.level;
-  menuGradeSpan.textContent = getGrade(player.level);
-  menuWinsSpan.textContent = stats.wins;
-  menuLossesSpan.textContent = stats.losses;
-
-  lastFrameTime = performance.now();
-  draw();
-}
-
-window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
-
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-startBtn.addEventListener("click", () => {
-  if (!pseudoInput.value.trim()) {
-    alert("Veuillez entrer un pseudo !");
-    return;
-  }
-  startGame();
-});
+    drawStar(ctx, virus.x, virus.y, 5, virus.r * 0.8, virus.r * 0
