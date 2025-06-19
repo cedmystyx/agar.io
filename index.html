@@ -12,14 +12,16 @@
     <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" /><br />
     <label for="colorPicker">Choisis ta couleur :</label><br />
     <input type="color" id="colorPicker" value="#00ff00" /><br />
+    <div>
+      <strong>Niveau :</strong> <span id="menuLevel">1</span><br />
+      <strong>Grade :</strong> <span id="menuGrade">Bronze 1</span>
+    </div>
     <button id="startBtn">Jouer</button>
   </div>
 
   <div id="gameContainer" style="display:none;">
     <div id="hud">
       <div id="score">Score : 0</div>
-      <div id="level">Niveau : 1</div>
-      <div id="grade">Grade : Bronze 1</div>
       <div id="timer">Temps restant : 05:00</div>
     </div>
     <canvas id="game"></canvas>
