@@ -619,7 +619,30 @@ startBtn.addEventListener("click", () => {
     alert("Veuillez entrer un pseudo d'au moins 2 caractères.");
     return;
   }
-  startGame();
+
+  // Initialise le joueur avec les bonnes valeurs et la couleur choisie
+  player = {
+    x: 0,
+    y: 0,
+    r: 20,
+    targetR: 20,
+    color: colorPicker.value || "limegreen",
+    speed: 3,
+    score: 0,
+    level: 1,
+    shield: false,
+  };
+
+  spawnFood();
+  spawnBots(true);
+  spawnVirus();
+  gameStartTime = performance.now();
+  gameOver = false;
+  menu.style.display = "none";
+  gameContainer.style.display = "block";
+  draw();
+  lastTime = performance.now();
+  gameLoop();
 });
 
 // Affichage stats menu au chargement
