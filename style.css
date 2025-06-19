@@ -13,13 +13,13 @@ html, body {
   transform: translate(-50%, -50%);
   color: white;
   text-align: center;
-  background: rgba(0,0,0,0.8);
+  background: rgba(0,0,0,0.85);
   padding: 30px 50px;
   border-radius: 10px;
   user-select: none;
 }
 
-#menu input {
+#menu input[type=text], #menu input[type=color] {
   font-size: 18px;
   padding: 8px;
   margin-top: 10px;
