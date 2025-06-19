@@ -23,7 +23,6 @@ window.addEventListener("mousemove", (e) => {
 const MAX_BOTS = 20;
 const FOOD_COUNT = 100;
 const GAME_DURATION = 5 * 60 * 1000; // 5 minutes
-
 const MAP_SIZE = 2000;
 const HALF_MAP = MAP_SIZE / 2;
 
@@ -328,19 +327,18 @@ function endGame() {
   gameContainer.style.display = "none";
 }
 
+let animationFrameId;
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
 
-  // Zoom caméra en fonction de la taille du joueur (plus gros -> zoom arrière)
   cameraZoom = 100 / (player.r + 30);
   cameraZoom = clamp(cameraZoom, 0.3, 1.5);
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(cameraZoom, cameraZoom);
   ctx.translate(-player.x, -player.y);
 
-  // Dessiner nourriture
   foods.forEach(food => {
     ctx.fillStyle = food.color;
     ctx.beginPath();
@@ -348,7 +346,6 @@ function draw() {
     ctx.fill();
   });
 
-  // Dessiner bots
   bots.forEach(bot => {
     if (bot.respawnTimeout) return;
     ctx.fillStyle = bot.color;
@@ -357,7 +354,6 @@ function draw() {
     ctx.fill();
   });
 
-  // Dessiner joueur
   ctx.fillStyle = player.color;
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
@@ -365,7 +361,6 @@ function draw() {
 
   ctx.restore();
 
-  // Afficher score en jeu
   scoreDiv.textContent = `Score: ${player.score} | Niveau: ${player.level} | Grade: ${getGrade(player.level)}`;
 
   animationFrameId = requestAnimationFrame(() => {
