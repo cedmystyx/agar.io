@@ -13,6 +13,8 @@ const timerDiv = document.getElementById("timer");
 
 const menuLevelSpan = document.getElementById("menuLevel");
 const menuGradeSpan = document.getElementById("menuGrade");
+const menuWinsSpan = document.getElementById("menuWins");
+const menuLossesSpan = document.getElementById("menuLosses");
 
 let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 window.addEventListener("mousemove", (e) => {
@@ -29,6 +31,7 @@ const HALF_MAP = MAP_SIZE / 2;
 let player = null;
 let bots = [];
 let foods = [];
+let virus = null; // Forma virus (malus)
 
 let cameraZoom = 1;
 
@@ -36,9 +39,6 @@ let gameStartTime = null;
 let gameOver = false;
 
 let lastFrameTime = performance.now();
-
-let savedLevel = parseInt(localStorage.getItem("playerLevel")) || 1;
-let savedScore = parseInt(localStorage.getItem("playerScore")) || 0;
 
 const MAX_LEVEL = 2000;
 const GRADES = [
@@ -52,6 +52,12 @@ const GRADES = [
   "Légendes 1","Légendes 2","Légendes 3",
   "Ranked"
 ];
+
+// Partie stockage stats parties jouées/gagnées/perdues pour le rank
+let stats = {
+  wins: parseInt(localStorage.getItem("wins")) || 0,
+  losses: parseInt(localStorage.getItem("losses")) || 0,
+};
 
 function clamp(val, min, max) {
   return Math.min(Math.max(val, min), max);
@@ -67,6 +73,21 @@ function getGrade(level) {
   return GRADES[index];
 }
 
+// La "rank" (grade) en fonction des wins/pertes
+function getRank(wins, losses) {
+  const total = wins + losses;
+  if (total === 0) return "Débutant";
+  const ratio = wins / total;
+
+  if (ratio >= 0.9) return "Légende";
+  if (ratio >= 0.7) return "Champion";
+  if (ratio >= 0.5) return "Immortal";
+  if (ratio >= 0.3) return "Élite";
+  if (ratio >= 0.1) return "Or";
+  return "Bronze";
+}
+
+// Crée la nourriture
 function spawnFood() {
   foods = [];
   for (let i = 0; i < FOOD_COUNT; i++) {
@@ -75,10 +96,12 @@ function spawnFood() {
       y: (Math.random() - 0.5) * MAP_SIZE,
       r: 5,
       color: `hsl(${Math.random() * 360}, 80%, 60%)`,
+      type: "food"
     });
   }
 }
 
+// Nourriture supplémentaire quand mangée
 function spawnRandomFood(count = 5) {
   for (let i = 0; i < count; i++) {
     foods.push({
@@ -86,10 +109,12 @@ function spawnRandomFood(count = 5) {
       y: (Math.random() - 0.5) * MAP_SIZE,
       r: 5,
       color: `hsl(${Math.random() * 360}, 80%, 60%)`,
+      type: "food"
     });
   }
 }
 
+// Création bots
 function spawnBots(initial = true) {
   if (initial) bots = [];
   while (bots.length < MAX_BOTS) {
@@ -122,6 +147,28 @@ function respawnBot(bot) {
 function clampPosition(entity) {
   entity.x = clamp(entity.x, -HALF_MAP, HALF_MAP);
   entity.y = clamp(entity.y, -HALF_MAP, HALF_MAP);
+}
+
+// Le virus (Forma Virus)
+function spawnVirus() {
+  virus = {
+    x: (Math.random() - 0.5) * MAP_SIZE,
+    y: (Math.random() - 0.5) * MAP_SIZE,
+    r: 30,
+    color: "red",
+    speed: 1.2,
+    direction: Math.random() * Math.PI * 2,
+  };
+}
+
+function moveVirus() {
+  virus.x += Math.cos(virus.direction) * virus.speed;
+  virus.y += Math.sin(virus.direction) * virus.speed;
+
+  // Change direction si virus sort de la map
+  if (virus.x < -HALF_MAP || virus.x > HALF_MAP) virus.direction = Math.PI - virus.direction;
+  if (virus.y < -HALF_MAP || virus.y > HALF_MAP) virus.direction = -virus.direction;
+  clampPosition(virus);
 }
 
 function getMouseWorldPos() {
@@ -225,59 +272,68 @@ function removeBot(botIndex) {
 }
 
 function eatCheck() {
-  // Joueur mange nourriture
+  // Joueur touche virus => divise taille par 2 + message
+  if (virus && dist(player, virus) < player.r + virus.r) {
+    player.r = Math.max(10, player.r / 2);
+    // Pour ne pas toucher plusieurs fois de suite, on repositionne le virus
+    spawnVirus();
+  }
+
+  // Joueur mange nourriture -> augmente taille mais pas score
   for (let i = foods.length - 1; i >= 0; i--) {
     let food = foods[i];
-    if (dist(player, food) < player.r) {
+    if (dist(player, food) < player.r + food.r) {
       foods.splice(i, 1);
-      player.score += 1;
-      player.r = Math.min(150, player.r + 0.3);
+      player.r = Math.min(150, player.r + 0.5);
+      spawnRandomFood(1);
     }
   }
 
-  // Joueur mange bots plus petits
+  // Joueur mange bots plus petits -> augmente taille + score (exp)
   for (let i = bots.length - 1; i >= 0; i--) {
     let bot = bots[i];
     if (bot.respawnTimeout) continue;
     if (bot !== player && dist(player, bot) < player.r && player.r > bot.r * 1.1) {
-      player.score += Math.floor(bot.r);
-      player.r = Math.min(150, player.r + bot.r * 0.5);
+      player.score += Math.floor(bot.r); // gagne du score/exp en mangeant bots
+      player.r = Math.min(150, player.r + bot.r * 0.6);
       removeBot(i);
     }
   }
 
-  // Bots mangent nourriture
+  // Bots mangent nourriture -> augmente taille + score bot
   bots.forEach((bot) => {
     if (bot.respawnTimeout) return;
     for (let i = foods.length - 1; i >= 0; i--) {
       let food = foods[i];
-      if (dist(bot, food) < bot.r) {
+      if (dist(bot, food) < bot.r + food.r) {
         foods.splice(i, 1);
         bot.score++;
         bot.r = Math.min(150, bot.r + 0.2);
-        spawnRandomFood(5);
+        spawnRandomFood(1);
       }
     }
   });
 
-  // Bots mangent joueur si plus gros
+  // Bots mangent joueur si plus gros -> fin partie et perte
   for (let i = bots.length - 1; i >= 0; i--) {
     let bot = bots[i];
     if (bot.respawnTimeout) continue;
     if (dist(bot, player) < bot.r && bot.r > player.r * 1.1) {
       gameOver = true;
       alert("Tu as été mangé par un bot !");
+      stats.losses++;
+      localStorage.setItem("losses", stats.losses);
       endGame();
       return;
     }
   }
 
-  // Bots mangent bots plus petits
+  // Bots mangent bots plus petits -> augmente taille + score bot
   for (let i = bots.length - 1; i >= 0; i--) {
     for (let j = bots.length - 1; j >= 0; j--) {
       if (i === j) continue;
       let b1 = bots[i],
-        b2 = bots[j];
+          b2 = bots[j];
       if (b1.respawnTimeout || b2.respawnTimeout) continue;
       if (dist(b1, b2) < b1.r && b1.r > b2.r * 1.1) {
         b1.r = Math.min(150, b1.r + b2.r * 0.3);
@@ -295,6 +351,7 @@ function updateGame(delta) {
   movePlayerTowardsMouse();
   botsAI();
   eatCheck();
+  moveVirus();
 
   const elapsed = performance.now() - gameStartTime;
   const remaining = Math.max(0, GAME_DURATION - elapsed);
@@ -305,22 +362,22 @@ function updateGame(delta) {
 
   if (remaining <= 0) {
     gameOver = true;
+    stats.wins++;
+    localStorage.setItem("wins", stats.wins);
+    alert("Temps écoulé, tu as gagné la partie !");
     endGame();
   }
 
-  player.level = clamp(Math.floor(player.score / 5) + savedLevel, 1, MAX_LEVEL);
+  // Niveau basé sur score = expérience gagnée uniquement en mangeant bots
+  player.level = clamp(Math.floor(player.score / 10) + 1, 1, MAX_LEVEL);
 }
 
 function endGame() {
-  savedLevel = player.level;
-  savedScore = player.score;
-  localStorage.setItem("playerLevel", savedLevel);
-  localStorage.setItem("playerScore", savedScore);
+  menuLevelSpan.textContent = player.level;
+  menuGradeSpan.textContent = getGrade(player.level);
 
-  alert(`Partie terminée !\nNiveau atteint : ${savedLevel}\nGrade : ${getGrade(savedLevel)}`);
-
-  menuLevelSpan.textContent = savedLevel;
-  menuGradeSpan.textContent = getGrade(savedLevel);
+  menuWinsSpan.textContent = stats.wins;
+  menuLossesSpan.textContent = stats.losses;
 
   cancelAnimationFrame(animationFrameId);
   menu.style.display = "block";
@@ -339,6 +396,7 @@ function draw() {
   ctx.scale(cameraZoom, cameraZoom);
   ctx.translate(-player.x, -player.y);
 
+  // Dessiner nourriture
   foods.forEach(food => {
     ctx.fillStyle = food.color;
     ctx.beginPath();
@@ -346,6 +404,7 @@ function draw() {
     ctx.fill();
   });
 
+  // Dessiner bots
   bots.forEach(bot => {
     if (bot.respawnTimeout) return;
     ctx.fillStyle = bot.color;
@@ -354,6 +413,20 @@ function draw() {
     ctx.fill();
   });
 
+  // Dessiner virus
+  if(virus){
+    ctx.fillStyle = virus.color;
+    ctx.beginPath();
+    ctx.arc(virus.x, virus.y, virus.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dessiner étoile (forme virus) au centre du cercle rouge
+    ctx.strokeStyle = 'yellow';
+    ctx.lineWidth = 3;
+    drawStar(ctx, virus.x, virus.y, 5, virus.r * 0.8, virus.r * 0.4);
+  }
+
+  // Dessiner joueur
   ctx.fillStyle = player.color;
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
@@ -361,7 +434,7 @@ function draw() {
 
   ctx.restore();
 
-  scoreDiv.textContent = `Score: ${player.score} | Niveau: ${player.level} | Grade: ${getGrade(player.level)}`;
+  scoreDiv.textContent = `Score: ${player.score} | Niveau: ${player.level} | Grade: ${getGrade(player.level)} | Rank: ${getRank(stats.wins, stats.losses)} | Wins: ${stats.wins} | Losses: ${stats.losses}`;
 
   animationFrameId = requestAnimationFrame(() => {
     let now = performance.now();
@@ -372,10 +445,37 @@ function draw() {
   });
 }
 
+// Fonction utilitaire pour dessiner une étoile (virus)
+function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+  let rot = Math.PI / 2 * 3;
+  let x = cx;
+  let y = cy;
+  let step = Math.PI / spikes;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - outerRadius);
+  for (let i = 0; i < spikes; i++) {
+    x = cx + Math.cos(rot) * outerRadius;
+    y = cy + Math.sin(rot) * outerRadius;
+    ctx.lineTo(x, y);
+    rot += step;
+
+    x = cx + Math.cos(rot) * innerRadius;
+    y = cy + Math.sin(rot) * innerRadius;
+    ctx.lineTo(x, y);
+    rot += step;
+  }
+  ctx.lineTo(cx, cy - outerRadius);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fill();
+}
+
 function startGame() {
   menu.style.display = "none";
   gameContainer.style.display = "block";
 
+  // Réinitialisation totale niveau/score/statistiques partie, pas de sauvegarde !
   player = {
     x: 0,
     y: 0,
@@ -383,17 +483,20 @@ function startGame() {
     color: colorPicker.value,
     speed: 3,
     score: 0,
-    level: savedLevel,
+    level: 1,
   };
 
   spawnFood();
   spawnBots(true);
+  spawnVirus();
 
   gameStartTime = performance.now();
   gameOver = false;
 
-  menuLevelSpan.textContent = savedLevel;
-  menuGradeSpan.textContent = getGrade(savedLevel);
+  menuLevelSpan.textContent = player.level;
+  menuGradeSpan.textContent = getGrade(player.level);
+  menuWinsSpan.textContent = stats.wins;
+  menuLossesSpan.textContent = stats.losses;
 
   lastFrameTime = performance.now();
   draw();
