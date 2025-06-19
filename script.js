@@ -17,7 +17,7 @@ const menuLossesSpan = document.getElementById("menuLosses");
 const MAX_BOTS = 20;
 const FOOD_COUNT = 300;
 const GAME_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAP_SIZE = 3000;
+const MAP_SIZE = 4500; // agrandi de 3000 à 4500
 const HALF_MAP = MAP_SIZE / 2;
 const MAX_LEVEL = 2000;
 
@@ -32,6 +32,9 @@ const GRADES = [
   "Légendes 1","Légendes 2","Légendes 3",
   "Ranked"
 ];
+
+// Liste emojis nourriture
+const FOOD_EMOJIS = ["🍰","🍉","🍕","🍔","🍦","🍩","🍇","🍒","🍎","🍌","🍟","🌮"];
 
 // Stats dans localStorage
 let stats = {
@@ -87,15 +90,15 @@ window.addEventListener("touchmove", e => {
   }
 }, { passive:true });
 
-// Génère nourriture
+// Génère nourriture avec emoji
 function spawnFood() {
   foods = [];
   for(let i=0; i<FOOD_COUNT; i++){
     foods.push({
       x: (Math.random()-0.5)*MAP_SIZE,
       y: (Math.random()-0.5)*MAP_SIZE,
-      r: 5,
-      color: `hsl(${Math.random()*360}, 80%, 60%)`
+      r: 10,
+      emoji: FOOD_EMOJIS[Math.floor(Math.random()*FOOD_EMOJIS.length)]
     });
   }
 }
@@ -106,8 +109,8 @@ function spawnRandomFood(count=5){
     foods.push({
       x: (Math.random()-0.5)*MAP_SIZE,
       y: (Math.random()-0.5)*MAP_SIZE,
-      r: 5,
-      color: `hsl(${Math.random()*360}, 80%, 60%)`
+      r: 10,
+      emoji: FOOD_EMOJIS[Math.floor(Math.random()*FOOD_EMOJIS.length)]
     });
   }
 }
@@ -471,6 +474,41 @@ function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
   ctx.stroke();
 }
 
+// Fonction pour dessiner tuyaux électriques animés
+function drawElectricPipe(ctx, x1, y1, x2, y2, time) {
+  const length = Math.hypot(x2 - x1, y2 - y1);
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  
+  ctx.save();
+  ctx.translate(x1, y1);
+  ctx.rotate(angle);
+  
+  // Tube extérieur (transparent gris bleuté)
+  ctx.strokeStyle = 'rgba(100,100,255,0.4)';
+  ctx.lineWidth = 20;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(length, 0);
+  ctx.stroke();
+  
+  // Animation électrique : zigzag cyan
+  const waveAmplitude = 6;
+  const waveLength = 30;
+  const speed = 0.15;
+  ctx.strokeStyle = 'cyan';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  for(let i = 0; i <= length; i++) {
+    const y = waveAmplitude * Math.sin((i / waveLength + time * speed) * Math.PI * 2);
+    if(i === 0) ctx.moveTo(i, y);
+    else ctx.lineTo(i, y);
+  }
+  ctx.stroke();
+  
+  ctx.restore();
+}
+
 // Boucle dessin
 let animationFrameId;
 function draw(){
@@ -484,18 +522,15 @@ function draw(){
   ctx.scale(cameraZoom, cameraZoom);
   ctx.translate(-player.x, -player.y);
 
-  // Nourriture
+  // Nourriture avec emojis
   foods.forEach(food => {
-    ctx.fillStyle = food.color;
-    ctx.beginPath();
-    ctx.arc(food.x, food.y, food.r, 0, Math.PI*2);
-    ctx.fill();
+    ctx.font = `${food.r * 2}px serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(food.emoji, food.x, food.y);
   });
 
-  // Bonus
-  drawBonuses();
-
-  // Bots
+  // Dessiner bots
   bots.forEach(bot => {
     if(bot.respawnTimeout) return;
     ctx.fillStyle = bot.color;
@@ -504,91 +539,85 @@ function draw(){
     ctx.fill();
   });
 
-  // Virus
-  if(virus){
-    ctx.fillStyle = virus.color;
-    ctx.beginPath();
-    ctx.arc(virus.x, virus.y, virus.r, 0, Math.PI*2);
-    ctx.fill();
-
-    // Étoile au centre du virus
-    drawStar(ctx, virus.x, virus.y, 5, virus.r * 0.8, virus.r * 0.4);
-  }
-
-  // Joueur (dernier pour être au-dessus)
-  ctx.fillStyle = player.color;
+  // Dessiner joueur
+  ctx.fillStyle = player.shield ? "lightblue" : player.color;
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
   ctx.fill();
 
-  // Si bouclier actif
-  if(player.shield){
-    ctx.strokeStyle = "cyan";
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.r + 5, 0, Math.PI*2);
-    ctx.stroke();
+  // Dessiner virus (forme étoile)
+  if(virus){
+    drawStar(ctx, virus.x, virus.y, 5, virus.r, virus.r/2);
   }
+
+  // Dessiner bonus
+  drawBonuses();
+
+  // Dessiner limites tuyaux électriques
+  const time = performance.now() / 1000;
+  drawElectricPipe(ctx, -HALF_MAP, -HALF_MAP, HALF_MAP, -HALF_MAP, time); // haut
+  drawElectricPipe(ctx, HALF_MAP, -HALF_MAP, HALF_MAP, HALF_MAP, time);   // droite
+  drawElectricPipe(ctx, HALF_MAP, HALF_MAP, -HALF_MAP, HALF_MAP, time);   // bas
+  drawElectricPipe(ctx, -HALF_MAP, HALF_MAP, -HALF_MAP, -HALF_MAP, time); // gauche
 
   ctx.restore();
 
   animationFrameId = requestAnimationFrame(draw);
 }
 
-// Démarrer le jeu
-function startGame(){
-  const pseudo = pseudoInput.value.trim() || "Invité";
-  const color = colorPicker.value || "#00ff00";
-
+// Initialisation du joueur
+function initPlayer(){
   player = {
     x: 0,
     y: 0,
     r: 20,
-    color: color,
+    color: "limegreen",
     speed: 3,
     score: 0,
     level: 1,
     shield: false,
   };
+}
 
+// Démarrer la partie
+function startGame(){
+  initPlayer();
   spawnFood();
-  spawnBots();
+  spawnBots(true);
   spawnVirus();
-  bonuses = [];
-
+  gameStartTime = performance.now();
+  gameOver = false;
   menu.style.display = "none";
   gameContainer.style.display = "block";
-
-  gameOver = false;
-  gameStartTime = performance.now();
-
-  updateHUD();
   draw();
+  lastTime = performance.now();
   gameLoop();
 }
 
-// Met à jour HUD menu
-function updateHUD(){
-  menuLevelSpan.textContent = player.level;
-  menuGradeSpan.textContent = getGrade(player.level);
-  menuWinsSpan.textContent = stats.wins;
-  menuLossesSpan.textContent = stats.losses;
-}
-
-// Boucle principale du jeu (update)
-let lastFrameTime = performance.now();
-function gameLoop(){
-  if(gameOver) return;
-  const now = performance.now();
-  const delta = now - lastFrameTime;
-  lastFrameTime = now;
-
+// Boucle update delta
+let lastTime = 0;
+function gameLoop(time=0){
+  const delta = time - lastTime;
+  lastTime = time;
   updateGame(delta);
-
-  requestAnimationFrame(gameLoop);
+  if(!gameOver) requestAnimationFrame(gameLoop);
 }
 
-// Événement bouton démarrer
+// Gestion bouton démarrer
 startBtn.addEventListener("click", () => {
+  const pseudo = pseudoInput.value.trim();
+  if(pseudo.length < 2){
+    alert("Veuillez entrer un pseudo d'au moins 2 caractères.");
+    return;
+  }
   startGame();
 });
+
+// Affichage stats menu au chargement
+menuWinsSpan.textContent = stats.wins;
+menuLossesSpan.textContent = stats.losses;
+
+// Appelle le spawn initial
+spawnFood();
+spawnBots(true);
+spawnVirus();
