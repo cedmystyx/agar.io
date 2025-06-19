@@ -337,3 +337,57 @@ function drawCircle(entity) {
 function draw() {
   if(!player) return;
   ctx.clearRect(0,0,canvas.width, canvas.height);
+
+  // Nourriture
+  for(let f of foods) {
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.r, 0, Math.PI*2);
+    ctx.fillStyle = f.color;
+    ctx.fill();
+  }
+
+  // Bonus étoiles
+  for(let b of bonuses) {
+    if(!b.active) continue;
+    drawStar(b.x, b.y, b.r, b.type === "yellow" ? "yellow" : "deeppink");
+  }
+
+  // Bots
+  for(let bot of bots) {
+    drawCircle(bot);
+  }
+
+  // Joueur
+  drawCircle(player);
+}
+
+function updateScore() {
+  if(!player) return;
+  // Tri classement par score décroissant (r)
+  let leaderboard = [...bots, player].sort((a,b) => b.r - a.r);
+  let rank = leaderboard.findIndex(e => e === player) + 1;
+  scoreDiv.textContent = `${player.name} - Rang: ${rank} / ${leaderboard.length} - Score: ${player.score}`;
+}
+
+function loop() {
+  updatePlayer();
+  updateBots();
+  handleEating();
+  draw();
+  updateScore();
+  animationFrameId = requestAnimationFrame(loop);
+}
+
+startBtn.addEventListener("click", () => {
+  if(pseudoInput.value.trim().length === 0) {
+    alert("Merci de saisir un pseudo.");
+    return;
+  }
+  initGame();
+});
+
+window.addEventListener("resize", () => {
+  if(!player) return;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
