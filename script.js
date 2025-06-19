@@ -414,6 +414,10 @@ function updateGame(delta){
   eatCheck();
   moveVirus();
 
+  // Lissage taille joueur pour éviter les sauts brusques
+  const growthSpeed = 0.1; // Ajustable (0.05 à 0.2)
+  player.r += (player.targetR - player.r) * growthSpeed;
+
   const elapsed = performance.now() - gameStartTime;
   const remaining = Math.max(0, GAME_DURATION - elapsed);
 
@@ -428,6 +432,10 @@ function updateGame(delta){
     alert("Temps écoulé, tu as gagné la partie !");
     endGame();
   }
+
+  player.level = clamp(Math.floor(player.score/10)+1, 1, MAX_LEVEL);
+  scoreDiv.textContent = `Score : ${player.score}`;
+}
 
   player.level = clamp(Math.floor(player.score/10)+1, 1, MAX_LEVEL);
   scoreDiv.textContent = `Score : ${player.score}`;
