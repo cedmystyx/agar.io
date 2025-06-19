@@ -1,95 +1,54 @@
-script.js
-----------
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const scoreDiv = document.getElementById("score");
-
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
-document.addEventListener("mousemove", e => {
-  mouse.x = e.clientX;
-  mouse.y = e.clientY;
-});
-
-const player = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  r: 20,
-  speed: 3,
-  color: "lime",
-  score: 0
-};
-
-const foods = [];
-const FOOD_COUNT = 100;
-
-function spawnFood() {
-  return {
-    x: Math.random() * canvas.width,
-    y: Math.random() * canvas.height,
-    r: 5 + Math.random() * 5,
-    color: "orange"
-  };
+html, body {
+  margin: 0;
+  overflow: hidden;
+  background: #111;
+  font-family: Arial, sans-serif;
+  height: 100%;
 }
 
-for (let i = 0; i < FOOD_COUNT; i++) {
-  foods.push(spawnFood());
+#menu {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  text-align: center;
+  background: rgba(0,0,0,0.8);
+  padding: 30px 50px;
+  border-radius: 10px;
+  user-select: none;
 }
 
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+#menu input {
+  font-size: 18px;
+  padding: 8px;
+  margin-top: 10px;
+  width: 200px;
+  border-radius: 5px;
+  border: none;
+  outline: none;
 }
 
-function update() {
-  const dx = mouse.x - player.x;
-  const dy = mouse.y - player.y;
-  const dist = Math.hypot(dx, dy);
-  if (dist > 1) {
-    player.x += dx / dist * player.speed;
-    player.y += dy / dist * player.speed;
-  }
-
-  for (let i = foods.length - 1; i >= 0; i--) {
-    if (distance(player, foods[i]) < player.r + foods[i].r) {
-      player.r += foods[i].r * 0.05;
-      player.score++;
-      foods.splice(i, 1);
-      foods.push(spawnFood());
-    }
-  }
-
-  scoreDiv.textContent = `Score : ${player.score}`;
+#menu button {
+  margin-top: 15px;
+  font-size: 18px;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-radius: 5px;
+  border: none;
+  background: #4CAF50;
+  color: white;
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw player
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
-  ctx.fillStyle = player.color;
-  ctx.fill();
-
-  // Draw foods
-  for (let f of foods) {
-    ctx.beginPath();
-    ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-    ctx.fillStyle = f.color;
-    ctx.fill();
-  }
+#score {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  font-size: 18px;
+  z-index: 10;
 }
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
+canvas {
+  display: block;
 }
-
-loop();
-
-window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-});
