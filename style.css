@@ -17,6 +17,7 @@ html, body {
   border-radius: 10px;
   text-align: center;
   user-select: none;
+  width: 320px;
 }
 
 #menu input[type=text], #menu input[type=color] {
@@ -38,6 +39,10 @@ html, body {
   border: none;
   background: #4CAF50;
   color: white;
+  transition: background 0.3s ease;
+}
+#menu button:hover {
+  background: #399d3b;
 }
 
 #gameContainer {
@@ -60,9 +65,17 @@ canvas {
   text-align: right;
   font-size: 16px;
   user-select: none;
+  font-weight: bold;
+  color: #00ff00;
+  text-shadow: 0 0 5px #00ff00aa;
 }
 
 #hud > div {
   margin-bottom: 5px;
-  font-weight: bold;
+}
+
+/* Virus star shape */
+@keyframes pulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 5px red); }
+  50% { filter: drop-shadow(0 0 15px yellow); }
 }
