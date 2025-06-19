@@ -379,7 +379,7 @@ function updateGame(delta) {
   moveVirus();
 
   // Lissage croissance joueur
-  const growthSpeed = 0.1;
+  const growthSpeed = 1;
   player.r += (player.targetR - player.r) * growthSpeed;
 
   // Timer & affichage
