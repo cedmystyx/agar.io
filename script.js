@@ -15,9 +15,9 @@ const menuLossesSpan = document.getElementById("menuLosses");
 
 // CONSTANTES ET VARIABLES GLOBALES
 const MAX_BOTS = 20;
-const FOOD_COUNT = 300;
+const FOOD_COUNT = 2200; // multiplié par 4
 const GAME_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAP_SIZE = 4500; // agrandi de 3000 à 4500
+const MAP_SIZE = 4500;
 const HALF_MAP = MAP_SIZE / 2;
 const MAX_LEVEL = 2000;
 
