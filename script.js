@@ -14,8 +14,8 @@ const timerDiv = document.getElementById("timer");
 const menuLevelSpan = document.getElementById("menuLevel");
 const menuGradeSpan = document.getElementById("menuGrade");
 
-let mouse = { x: window.innerWidth/2, y: window.innerHeight/2 };
-window.addEventListener("mousemove", e => {
+let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+window.addEventListener("mousemove", (e) => {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
@@ -24,6 +24,9 @@ const MAX_BOTS = 20;
 const FOOD_COUNT = 100;
 const BONUS_COUNT = 3;
 const GAME_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const MAP_SIZE = 2000; // Largeur et hauteur de la map (carte carré, centrée 0,0)
+const HALF_MAP = MAP_SIZE / 2;
 
 let player = null;
 let bots = [];
@@ -53,53 +56,84 @@ const GRADES = [
   "Ranked"
 ];
 
-function clamp(val,min,max) {
-  return Math.min(Math.max(val,min), max);
+function clamp(val, min, max) {
+  return Math.min(Math.max(val, min), max);
 }
 
-function dist(a,b) {
-  return Math.hypot(a.x-b.x, a.y-b.y);
+function dist(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function getGrade(level) {
-  if(level >= MAX_LEVEL) return GRADES[GRADES.length-1];
-  let index = Math.floor(level / (MAX_LEVEL / (GRADES.length-1)));
+  if (level >= MAX_LEVEL) return GRADES[GRADES.length - 1];
+  let index = Math.floor(level / (MAX_LEVEL / (GRADES.length - 1)));
   return GRADES[index];
 }
 
 // --- GÉNÉRATION NOURRITURE ---
 function spawnFood() {
   foods = [];
-  for(let i=0; i<FOOD_COUNT; i++) {
+  for (let i = 0; i < FOOD_COUNT; i++) {
     foods.push({
-      x: (Math.random()-0.5)*2000,
-      y: (Math.random()-0.5)*2000,
+      x: (Math.random() - 0.5) * MAP_SIZE,
+      y: (Math.random() - 0.5) * MAP_SIZE,
       r: 5,
-      color: `hsl(${Math.random()*360}, 80%, 60%)`
+      color: `hsl(${Math.random() * 360}, 80%, 60%)`,
+    });
+  }
+}
+
+// --- AJOUTER NOURRITURE ALÉATOIRE (ex: 5 nourritures) ---
+function spawnRandomFood(count = 5) {
+  for (let i = 0; i < count; i++) {
+    foods.push({
+      x: (Math.random() - 0.5) * MAP_SIZE,
+      y: (Math.random() - 0.5) * MAP_SIZE,
+      r: 5,
+      color: `hsl(${Math.random() * 360}, 80%, 60%)`,
     });
   }
 }
 
 // --- GÉNÉRATION BOTS ---
-function spawnBots() {
-  bots = [];
-  for(let i=0; i<MAX_BOTS; i++) {
+function spawnBots(initial = true) {
+  if (initial) bots = [];
+  // Si déjà plein, on ne dépasse pas MAX_BOTS
+  while (bots.length < MAX_BOTS) {
     bots.push({
-      x: (Math.random()-0.5)*2000,
-      y: (Math.random()-0.5)*2000,
-      r: 15 + Math.random()*15,
-      color: `hsl(${Math.random()*360}, 60%, 50%)`,
-      speed: 1 + Math.random()*1.5,
+      x: (Math.random() - 0.5) * MAP_SIZE,
+      y: (Math.random() - 0.5) * MAP_SIZE,
+      r: 15 + Math.random() * 15,
+      color: `hsl(${Math.random() * 360}, 60%, 50%)`,
+      speed: 1 + Math.random() * 1.5,
       target: null,
       score: 0,
+      respawnTimeout: null, // Pour gérer la réapparition
     });
   }
 }
 
+function respawnBot(bot) {
+  bot.x = (Math.random() - 0.5) * MAP_SIZE;
+  bot.y = (Math.random() - 0.5) * MAP_SIZE;
+  bot.r = 15 + Math.random() * 15;
+  bot.color = `hsl(${Math.random() * 360}, 60%, 50%)`;
+  bot.speed = 1 + Math.random() * 1.5;
+  bot.target = null;
+  bot.score = 0;
+  bot.respawnTimeout = null;
+}
+
+// Clamp position dans les limites de la map
+function clampPosition(entity) {
+  entity.x = clamp(entity.x, -HALF_MAP, HALF_MAP);
+  entity.y = clamp(entity.y, -HALF_MAP, HALF_MAP);
+}
+
 function getMouseWorldPos() {
   return {
-    x: (mouse.x - canvas.width/2) / cameraZoom + player.x,
-    y: (mouse.y - canvas.height/2) / cameraZoom + player.y
+    x: (mouse.x - canvas.width / 2) / cameraZoom + player.x,
+    y: (mouse.y - canvas.height / 2) / cameraZoom + player.y,
   };
 }
 
@@ -108,27 +142,29 @@ function movePlayerTowardsMouse() {
   const dx = target.x - player.x;
   const dy = target.y - player.y;
   const distToTarget = Math.hypot(dx, dy);
-  if(distToTarget > 1) {
+  if (distToTarget > 1) {
     const moveDist = Math.min(distToTarget, player.speed);
-    player.x += dx / distToTarget * moveDist;
-    player.y += dy / distToTarget * moveDist;
+    player.x += (dx / distToTarget) * moveDist;
+    player.y += (dy / distToTarget) * moveDist;
+    clampPosition(player);
   }
 }
 
 function botsAI() {
-  bots.forEach(bot => {
-    // Choisir une cible : nourriture ou joueur selon proximité et taille
-    if(!bot.target || bot.target === null || bot.target.r <= 0) {
-      // Chercher plus gros joueur si possible sinon nourriture
-      if(player.r > bot.r * 1.1) {
+  bots.forEach((bot) => {
+    if (bot.respawnTimeout) return; // Bot "mort", pas d'actions
+
+    // Choisir une cible : joueur ou nourriture selon conditions
+    if (!bot.target || bot.target.r <= 0) {
+      if (player.r > bot.r * 1.1) {
         bot.target = player;
       } else {
         // Nourriture la plus proche
         let minDist = Infinity;
         let closest = null;
-        foods.forEach(food => {
+        foods.forEach((food) => {
           let d = dist(bot, food);
-          if(d < minDist) {
+          if (d < minDist) {
             minDist = d;
             closest = food;
           }
@@ -136,24 +172,41 @@ function botsAI() {
         bot.target = closest;
       }
     }
-    if(bot.target) {
+
+    if (bot.target) {
       const dx = bot.target.x - bot.x;
       const dy = bot.target.y - bot.y;
       const distance = Math.hypot(dx, dy);
-      if(distance > 1) {
+      if (distance > 1) {
         const moveDist = Math.min(distance, bot.speed);
-        bot.x += dx / distance * moveDist;
-        bot.y += dy / distance * moveDist;
+        bot.x += (dx / distance) * moveDist;
+        bot.y += (dy / distance) * moveDist;
+        clampPosition(bot);
       }
     }
   });
 }
 
+function removeBot(botIndex) {
+  let bot = bots[botIndex];
+  if (bot.respawnTimeout) return; // Déjà en respawn
+
+  // Cache le bot (simulate "mort")
+  bot.respawnTimeout = setTimeout(() => {
+    respawnBot(bot);
+  }, 2000); // Réapparition après 2 secondes
+  bot.x = 99999; // Hors carte
+  bot.y = 99999;
+  bot.r = 0;
+  bot.target = null;
+  bot.score = 0;
+}
+
 function eatCheck() {
   // Joueur mange nourriture
-  for(let i = foods.length -1; i>=0; i--) {
+  for (let i = foods.length - 1; i >= 0; i--) {
     let food = foods[i];
-    if(dist(player, food) < player.r) {
+    if (dist(player, food) < player.r) {
       foods.splice(i, 1);
       player.score += 1;
       player.r = Math.min(150, player.r + 0.3); // grossit lentement
@@ -161,31 +214,36 @@ function eatCheck() {
   }
 
   // Joueur mange bots plus petits
-  for(let i = bots.length -1; i>=0; i--) {
+  for (let i = bots.length - 1; i >= 0; i--) {
     let bot = bots[i];
-    if(bot !== player && dist(player, bot) < player.r && player.r > bot.r * 1.1) {
+    if (bot.respawnTimeout) continue; // Mort
+    if (bot !== player && dist(player, bot) < player.r && player.r > bot.r * 1.1) {
       player.score += Math.floor(bot.r);
       player.r = Math.min(150, player.r + bot.r * 0.5);
-      bots.splice(i,1);
+      removeBot(i);
     }
   }
 
   // Bots mangent nourriture
-  bots.forEach(bot => {
-    for(let i = foods.length -1; i>=0; i--) {
+  bots.forEach((bot, index) => {
+    if (bot.respawnTimeout) return;
+    for (let i = foods.length - 1; i >= 0; i--) {
       let food = foods[i];
-      if(dist(bot, food) < bot.r) {
-        foods.splice(i,1);
+      if (dist(bot, food) < bot.r) {
+        foods.splice(i, 1);
         bot.score++;
         bot.r = Math.min(150, bot.r + 0.2);
+        // Quand un bot mange nourriture, spawn 5 nouvelles nourritures
+        spawnRandomFood(5);
       }
     }
   });
 
   // Bots mangent joueur si plus gros
-  for(let i = bots.length -1; i>=0; i--) {
+  for (let i = bots.length - 1; i >= 0; i--) {
     let bot = bots[i];
-    if(dist(bot, player) < bot.r && bot.r > player.r * 1.1) {
+    if (bot.respawnTimeout) continue;
+    if (dist(bot, player) < bot.r && bot.r > player.r * 1.1) {
       // Game over, le joueur est mangé
       gameOver = true;
       alert("Tu as été mangé par un bot !");
@@ -195,22 +253,24 @@ function eatCheck() {
   }
 
   // Bots mangent bots plus petits entre eux
-  for(let i = bots.length -1; i>=0; i--) {
-    for(let j = bots.length -1; j>=0; j--) {
-      if(i === j) continue;
-      let b1 = bots[i], b2 = bots[j];
-      if(dist(b1, b2) < b1.r && b1.r > b2.r * 1.1) {
+  for (let i = bots.length - 1; i >= 0; i--) {
+    for (let j = bots.length - 1; j >= 0; j--) {
+      if (i === j) continue;
+      let b1 = bots[i],
+        b2 = bots[j];
+      if (b1.respawnTimeout || b2.respawnTimeout) continue;
+      if (dist(b1, b2) < b1.r && b1.r > b2.r * 1.1) {
         b1.r = Math.min(150, b1.r + b2.r * 0.3);
         b1.score += Math.floor(b2.r);
-        bots.splice(j,1);
-        if(j < i) i--;
+        removeBot(j);
+        if (j < i) i--;
       }
     }
   }
 }
 
 function updateGame(delta) {
-  if(gameOver) return;
+  if (gameOver) return;
 
   movePlayerTowardsMouse();
   botsAI();
@@ -222,9 +282,11 @@ function updateGame(delta) {
 
   const minutes = Math.floor(remaining / 60000);
   const seconds = Math.floor((remaining % 60000) / 1000);
-  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")}`;
+  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
 
-  if(remaining <= 0) {
+  if (remaining <= 0) {
     gameOver = true;
     endGame();
   }
@@ -275,7 +337,7 @@ function draw() {
   );
 
   // Dessiner nourriture
-  foods.forEach(food => {
+  foods.forEach((food) => {
     ctx.beginPath();
     ctx.arc(food.x, food.y, food.r, 0, Math.PI * 2);
     ctx.fillStyle = food.color;
@@ -283,7 +345,8 @@ function draw() {
   });
 
   // Dessiner bots
-  bots.forEach(bot => {
+  bots.forEach((bot) => {
+    if (bot.respawnTimeout) return; // Pas visible si "mort"
     ctx.beginPath();
     ctx.arc(bot.x, bot.y, bot.r, 0, Math.PI * 2);
     ctx.fillStyle = bot.color;
@@ -325,7 +388,7 @@ function startGame() {
   };
 
   spawnFood();
-  spawnBots();
+  spawnBots(true);
 
   gameStartTime = performance.now();
   gameOver = false;
