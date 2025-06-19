@@ -20,7 +20,6 @@ window.addEventListener("mousemove", e => {
   mouse.y = e.clientY;
 });
 
-// Variables de jeu et constantes
 const MAX_BOTS = 20;
 const FOOD_COUNT = 100;
 const BONUS_COUNT = 3;
@@ -38,11 +37,9 @@ let gameOver = false;
 
 let lastFrameTime = performance.now();
 
-// XP et progression conservés en localStorage
 let savedLevel = parseInt(localStorage.getItem("playerLevel")) || 1;
 let savedScore = parseInt(localStorage.getItem("playerScore")) || 0;
 
-// Grades et niveaux comme avant
 const MAX_LEVEL = 2000;
 const GRADES = [
   "Bronze 1","Bronze 2","Bronze 3",
@@ -70,7 +67,35 @@ function getGrade(level) {
   return GRADES[index];
 }
 
-// Position cible en "monde" calculée à partir de la souris et de la caméra
+// --- GÉNÉRATION NOURRITURE ---
+function spawnFood() {
+  foods = [];
+  for(let i=0; i<FOOD_COUNT; i++) {
+    foods.push({
+      x: (Math.random()-0.5)*2000,
+      y: (Math.random()-0.5)*2000,
+      r: 5,
+      color: `hsl(${Math.random()*360}, 80%, 60%)`
+    });
+  }
+}
+
+// --- GÉNÉRATION BOTS ---
+function spawnBots() {
+  bots = [];
+  for(let i=0; i<MAX_BOTS; i++) {
+    bots.push({
+      x: (Math.random()-0.5)*2000,
+      y: (Math.random()-0.5)*2000,
+      r: 15 + Math.random()*15,
+      color: `hsl(${Math.random()*360}, 60%, 50%)`,
+      speed: 1 + Math.random()*1.5,
+      target: null,
+      score: 0,
+    });
+  }
+}
+
 function getMouseWorldPos() {
   return {
     x: (mouse.x - canvas.width/2) / cameraZoom + player.x,
@@ -78,7 +103,6 @@ function getMouseWorldPos() {
   };
 }
 
-// Déplacement joueur vers la position monde de la souris
 function movePlayerTowardsMouse() {
   const target = getMouseWorldPos();
   const dx = target.x - player.x;
@@ -91,18 +115,108 @@ function movePlayerTowardsMouse() {
   }
 }
 
-// ... Le reste du code reste identique sauf :
-// 1) Affichage niveau + grade dans le menu, pas en jeu
-// 2) Mise à jour du niveau sauvegardé et affichage dans le menu
+function botsAI() {
+  bots.forEach(bot => {
+    // Choisir une cible : nourriture ou joueur selon proximité et taille
+    if(!bot.target || bot.target === null || bot.target.r <= 0) {
+      // Chercher plus gros joueur si possible sinon nourriture
+      if(player.r > bot.r * 1.1) {
+        bot.target = player;
+      } else {
+        // Nourriture la plus proche
+        let minDist = Infinity;
+        let closest = null;
+        foods.forEach(food => {
+          let d = dist(bot, food);
+          if(d < minDist) {
+            minDist = d;
+            closest = food;
+          }
+        });
+        bot.target = closest;
+      }
+    }
+    if(bot.target) {
+      const dx = bot.target.x - bot.x;
+      const dy = bot.target.y - bot.y;
+      const distance = Math.hypot(dx, dy);
+      if(distance > 1) {
+        const moveDist = Math.min(distance, bot.speed);
+        bot.x += dx / distance * moveDist;
+        bot.y += dy / distance * moveDist;
+      }
+    }
+  });
+}
+
+function eatCheck() {
+  // Joueur mange nourriture
+  for(let i = foods.length -1; i>=0; i--) {
+    let food = foods[i];
+    if(dist(player, food) < player.r) {
+      foods.splice(i, 1);
+      player.score += 1;
+      player.r = Math.min(150, player.r + 0.3); // grossit lentement
+    }
+  }
+
+  // Joueur mange bots plus petits
+  for(let i = bots.length -1; i>=0; i--) {
+    let bot = bots[i];
+    if(bot !== player && dist(player, bot) < player.r && player.r > bot.r * 1.1) {
+      player.score += Math.floor(bot.r);
+      player.r = Math.min(150, player.r + bot.r * 0.5);
+      bots.splice(i,1);
+    }
+  }
+
+  // Bots mangent nourriture
+  bots.forEach(bot => {
+    for(let i = foods.length -1; i>=0; i--) {
+      let food = foods[i];
+      if(dist(bot, food) < bot.r) {
+        foods.splice(i,1);
+        bot.score++;
+        bot.r = Math.min(150, bot.r + 0.2);
+      }
+    }
+  });
+
+  // Bots mangent joueur si plus gros
+  for(let i = bots.length -1; i>=0; i--) {
+    let bot = bots[i];
+    if(dist(bot, player) < bot.r && bot.r > player.r * 1.1) {
+      // Game over, le joueur est mangé
+      gameOver = true;
+      alert("Tu as été mangé par un bot !");
+      endGame();
+      return;
+    }
+  }
+
+  // Bots mangent bots plus petits entre eux
+  for(let i = bots.length -1; i>=0; i--) {
+    for(let j = bots.length -1; j>=0; j--) {
+      if(i === j) continue;
+      let b1 = bots[i], b2 = bots[j];
+      if(dist(b1, b2) < b1.r && b1.r > b2.r * 1.1) {
+        b1.r = Math.min(150, b1.r + b2.r * 0.3);
+        b1.score += Math.floor(b2.r);
+        bots.splice(j,1);
+        if(j < i) i--;
+      }
+    }
+  }
+}
 
 function updateGame(delta) {
   if(gameOver) return;
 
   movePlayerTowardsMouse();
+  botsAI();
+  eatCheck();
 
-  // Gestion nourriture, bonus, bots, manger etc. identique...
-
-  // Mise à jour timer
+  // Timer
   const elapsed = performance.now() - gameStartTime;
   const remaining = Math.max(0, GAME_DURATION - elapsed);
 
@@ -115,12 +229,10 @@ function updateGame(delta) {
     endGame();
   }
 
-  // Mise à jour du score / level du joueur en cours de partie
   player.level = clamp(Math.floor(player.score / 5) + savedLevel, 1, MAX_LEVEL);
 }
 
 function endGame() {
-  // Met à jour le niveau global sauvegardé
   savedLevel = player.level;
   savedScore = player.score;
   localStorage.setItem("playerLevel", savedLevel);
@@ -128,7 +240,6 @@ function endGame() {
 
   alert(`Partie terminée !\nNiveau atteint : ${savedLevel}\nGrade : ${getGrade(savedLevel)}`);
 
-  // Met à jour affichage menu
   menuLevelSpan.textContent = savedLevel;
   menuGradeSpan.textContent = getGrade(savedLevel);
 
@@ -142,9 +253,8 @@ function draw() {
   ctx.resetTransform();
 
   ctx.fillStyle = "#222";
-  ctx.fillRect(0,0,canvas.width, canvas.height);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Zoom et centrage caméra sur joueur
   const minR = 10;
   const maxR = 150;
   const minZoom = 2;
@@ -155,29 +265,47 @@ function draw() {
 
   cameraZoom += (targetZoom - cameraZoom) * 0.1;
 
-  ctx.setTransform(cameraZoom, 0, 0, cameraZoom, canvas.width/2 - player.x * cameraZoom, canvas.height/2 - player.y * cameraZoom);
+  ctx.setTransform(
+    cameraZoom,
+    0,
+    0,
+    cameraZoom,
+    canvas.width / 2 - player.x * cameraZoom,
+    canvas.height / 2 - player.y * cameraZoom
+  );
 
-  // Dessin nourriture, bonus, bots comme avant
+  // Dessiner nourriture
+  foods.forEach(food => {
+    ctx.beginPath();
+    ctx.arc(food.x, food.y, food.r, 0, Math.PI * 2);
+    ctx.fillStyle = food.color;
+    ctx.fill();
+  });
 
-  // Dessin joueur
+  // Dessiner bots
+  bots.forEach(bot => {
+    ctx.beginPath();
+    ctx.arc(bot.x, bot.y, bot.r, 0, Math.PI * 2);
+    ctx.fillStyle = bot.color;
+    ctx.fill();
+    ctx.fillStyle = "white";
+    ctx.font = `${Math.max(12, bot.r / 2)}px Arial`;
+    ctx.textAlign = "center";
+    ctx.fillText("Bot", bot.x, bot.y + 4);
+  });
+
+  // Dessiner joueur
   ctx.beginPath();
-  ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
+  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
   ctx.fillStyle = player.color;
   ctx.fill();
   ctx.fillStyle = "white";
   ctx.font = `${Math.max(12, player.r / 2)}px Arial`;
   ctx.textAlign = "center";
   ctx.fillText(player.name, player.x, player.y + 4);
+
+  scoreDiv.textContent = `Score : ${player.score}`;
 }
-
-// Gestion événement démarrage
-startBtn.onclick = () => {
-  // Met à jour le niveau affiché dans le menu à partir du localStorage
-  menuLevelSpan.textContent = savedLevel;
-  menuGradeSpan.textContent = getGrade(savedLevel);
-
-  startGame();
-};
 
 function startGame() {
   canvas.width = window.innerWidth;
@@ -193,10 +321,11 @@ function startGame() {
     score: 0,
     name: pseudoInput.value.trim() || "Anonyme",
     level: savedLevel,
-    boostTimer: 0
+    boostTimer: 0,
   };
 
-  // Spawn bots, nourriture, bonus etc. comme avant...
+  spawnFood();
+  spawnBots();
 
   gameStartTime = performance.now();
   gameOver = false;
@@ -207,20 +336,21 @@ function startGame() {
   scoreDiv.textContent = `Score : 0`;
   timerDiv.textContent = `Temps restant : 05:00`;
 
+  lastFrameTime = performance.now();
   loop();
 }
 
 let animationFrameId;
 let lastFrame = performance.now();
 
-function loop(time=0) {
+function loop(time = 0) {
   let delta = time - lastFrame;
   lastFrame = time;
 
   updateGame(delta);
   draw();
 
-  if(!gameOver) animationFrameId = requestAnimationFrame(loop);
+  if (!gameOver) animationFrameId = requestAnimationFrame(loop);
 }
 
 window.addEventListener("resize", () => {
@@ -228,6 +358,11 @@ window.addEventListener("resize", () => {
   canvas.height = window.innerHeight;
 });
 
-// Initialisation affichage menu niveau/grade au chargement
 menuLevelSpan.textContent = savedLevel;
 menuGradeSpan.textContent = getGrade(savedLevel);
+
+startBtn.onclick = () => {
+  menuLevelSpan.textContent = savedLevel;
+  menuGradeSpan.textContent = getGrade(savedLevel);
+  startGame();
+};
