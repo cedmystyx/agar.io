@@ -123,7 +123,7 @@ function spawnBots(initial=true){
       x: (Math.random()-0.5)*MAP_SIZE,
       y: (Math.random()-0.5)*MAP_SIZE,
       r: 15 + Math.random()*15,
-      color: `hsl(${Math.random()*360}, 60%, 50%)`,
+      color: hsl(${Math.random()*360}, 60%, 50%),
       speed: 1 + Math.random()*1.5,
       target: null,
       score: 0,
@@ -138,7 +138,7 @@ function respawnBot(bot){
   bot.x = (Math.random()-0.5)*MAP_SIZE;
   bot.y = (Math.random()-0.5)*MAP_SIZE;
   bot.r = 15 + Math.random()*15;
-  bot.color = `hsl(${Math.random()*360}, 60%, 50%)`;
+  bot.color = hsl(${Math.random()*360}, 60%, 50%);
   bot.speed = 1 + Math.random()*1.5;
   bot.target = null;
   bot.score = 0;
@@ -423,7 +423,7 @@ function updateGame(delta){
 
   const minutes = Math.floor(remaining/60000);
   const seconds = Math.floor((remaining%60000)/1000);
-  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")}`;
+  timerDiv.textContent = Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")};
 
   if(remaining <= 0){
     gameOver = true;
@@ -434,11 +434,11 @@ function updateGame(delta){
   }
 
   player.level = clamp(Math.floor(player.score/10)+1, 1, MAX_LEVEL);
-  scoreDiv.textContent = `Score : ${player.score}`;
+  scoreDiv.textContent = Score : ${player.score};
 }
 
   player.level = clamp(Math.floor(player.score/10)+1, 1, MAX_LEVEL);
-  scoreDiv.textContent = `Score : ${player.score}`;
+  scoreDiv.textContent = Score : ${player.score};
 }
 
 // Fin de partie : mise à jour stats et affichage menu
@@ -532,7 +532,7 @@ function draw(){
 
   // Nourriture avec emojis
   foods.forEach(food => {
-    ctx.font = `${food.r * 2}px serif`;
+    ctx.font = ${food.r * 2}px serif;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(food.emoji, food.x, food.y);
@@ -619,30 +619,7 @@ startBtn.addEventListener("click", () => {
     alert("Veuillez entrer un pseudo d'au moins 2 caractères.");
     return;
   }
-
-  // Initialise le joueur avec les bonnes valeurs et la couleur choisie
-  player = {
-    x: 0,
-    y: 0,
-    r: 20,
-    targetR: 20,
-    color: colorPicker.value || "limegreen",
-    speed: 3,
-    score: 0,
-    level: 1,
-    shield: false,
-  };
-
-  spawnFood();
-  spawnBots(true);
-  spawnVirus();
-  gameStartTime = performance.now();
-  gameOver = false;
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
-  draw();
-  lastTime = performance.now();
-  gameLoop();
+  startGame();
 });
 
 // Affichage stats menu au chargement
