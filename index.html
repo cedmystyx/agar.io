@@ -1,13 +1,25 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Mini Agar.io</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>Mini Agar.io avec bots multiples</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="score">Score : 0</div>
-  <canvas id="game"></canvas>
+  <!-- Menu -->
+  <div id="menu">
+    <h1>Mini Agar.io</h1>
+    <label for="pseudo">Entrez votre pseudo :</label><br />
+    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" /><br />
+    <button id="startBtn">Jouer</button>
+  </div>
+
+  <!-- Jeu -->
+  <div id="gameContainer" style="display:none;">
+    <div id="score">Score : 0</div>
+    <canvas id="game"></canvas>
+  </div>
+
   <script src="script.js"></script>
 </body>
 </html>
