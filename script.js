@@ -23,15 +23,16 @@ window.addEventListener("mousemove", (e) => {
 });
 
 const MAX_BOTS = 20;
-const FOOD_COUNT = 100;
+const FOOD_COUNT = 300;  // augmenté de 100 à 300
 const GAME_DURATION = 5 * 60 * 1000; // 5 minutes
-const MAP_SIZE = 2000;
+const MAP_SIZE = 3000;   // augmenté de 2000 à 3000
 const HALF_MAP = MAP_SIZE / 2;
 
 let player = null;
 let bots = [];
 let foods = [];
 let virus = null; // Forma virus (malus)
+let bonuses = [];
 
 let cameraZoom = 1;
 
@@ -171,6 +172,57 @@ function moveVirus() {
   clampPosition(virus);
 }
 
+// BONUS SYSTEME
+
+let bonusTypes = ["speed", "shield", "reset"];
+let bonusColors = { speed: "yellow", shield: "cyan", reset: "white" };
+
+function spawnBonuses() {
+  const type = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
+  bonuses.push({
+    x: (Math.random() - 0.5) * MAP_SIZE,
+    y: (Math.random() - 0.5) * MAP_SIZE,
+    r: 8,
+    type: type,
+    color: bonusColors[type],
+  });
+}
+
+setInterval(spawnBonuses, 15000);
+
+function handleBonuses() {
+  bonuses = bonuses.filter(bonus => {
+    if (dist(player, bonus) < player.r + bonus.r) {
+      switch (bonus.type) {
+        case "speed":
+          player.speed *= 1.5;
+          setTimeout(() => player.speed = 3, 5000);
+          break;
+        case "shield":
+          player.shield = true;
+          setTimeout(() => player.shield = false, 5000);
+          break;
+        case "reset":
+          player.r = 20;
+          player.score = 0;
+          break;
+      }
+      return false;
+    }
+    return true;
+  });
+}
+
+// Dessin des bonus
+function drawBonuses() {
+  bonuses.forEach(bonus => {
+    ctx.fillStyle = bonus.color;
+    ctx.beginPath();
+    ctx.arc(bonus.x, bonus.y, bonus.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
 function getMouseWorldPos() {
   return {
     x: (mouse.x - canvas.width / 2) / cameraZoom + player.x,
@@ -272,6 +324,9 @@ function removeBot(botIndex) {
 }
 
 function eatCheck() {
+  // Gérer bonus
+  handleBonuses();
+
   // Joueur touche virus => divise taille par 2 + message
   if (virus && dist(player, virus) < player.r + virus.r) {
     player.r = Math.max(10, player.r / 2);
@@ -426,11 +481,17 @@ function draw() {
     drawStar(ctx, virus.x, virus.y, 5, virus.r * 0.8, virus.r * 0.4);
   }
 
+  // Dessiner bonus
+  drawBonuses();
+
   // Dessiner joueur
   ctx.fillStyle = player.color;
   ctx.beginPath();
   ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
   ctx.fill();
+
+  // Dessiner barrières tuyaux électriques
+  drawElectricPipes();
 
   ctx.restore();
 
@@ -471,6 +532,85 @@ function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
   ctx.fill();
 }
 
+// Dessiner barrières "tuyaux électriques" sur les bords de la map
+function drawElectricPipes() {
+  const pipeColor = "#00FFFF";
+  const pipeGlowColor = "rgba(0, 255, 255, 0.5)";
+  const pipeWidth = 20;
+  const glowWidth = 30;
+  const spacing = 30;
+
+  ctx.lineCap = "round";
+
+  // Bord supérieur
+  for(let x = -HALF_MAP; x < HALF_MAP; x += spacing){
+    ctx.strokeStyle = pipeGlowColor;
+    ctx.lineWidth = glowWidth;
+    ctx.beginPath();
+    ctx.moveTo(x, -HALF_MAP);
+    ctx.lineTo(x + spacing/2, -HALF_MAP);
+    ctx.stroke();
+
+    ctx.strokeStyle = pipeColor;
+    ctx.lineWidth = pipeWidth;
+    ctx.beginPath();
+    ctx.moveTo(x, -HALF_MAP);
+    ctx.lineTo(x + spacing/2, -HALF_MAP);
+    ctx.stroke();
+  }
+
+  // Bord inférieur
+  for(let x = -HALF_MAP; x < HALF_MAP; x += spacing){
+    ctx.strokeStyle = pipeGlowColor;
+    ctx.lineWidth = glowWidth;
+    ctx.beginPath();
+    ctx.moveTo(x, HALF_MAP);
+    ctx.lineTo(x + spacing/2, HALF_MAP);
+    ctx.stroke();
+
+    ctx.strokeStyle = pipeColor;
+    ctx.lineWidth = pipeWidth;
+    ctx.beginPath();
+    ctx.moveTo(x, HALF_MAP);
+    ctx.lineTo(x + spacing/2, HALF_MAP);
+    ctx.stroke();
+  }
+
+  // Bord gauche
+  for(let y = -HALF_MAP; y < HALF_MAP; y += spacing){
+    ctx.strokeStyle = pipeGlowColor;
+    ctx.lineWidth = glowWidth;
+    ctx.beginPath();
+    ctx.moveTo(-HALF_MAP, y);
+    ctx.lineTo(-HALF_MAP, y + spacing/2);
+    ctx.stroke();
+
+    ctx.strokeStyle = pipeColor;
+    ctx.lineWidth = pipeWidth;
+    ctx.beginPath();
+    ctx.moveTo(-HALF_MAP, y);
+    ctx.lineTo(-HALF_MAP, y + spacing/2);
+    ctx.stroke();
+  }
+
+  // Bord droit
+  for(let y = -HALF_MAP; y < HALF_MAP; y += spacing){
+    ctx.strokeStyle = pipeGlowColor;
+    ctx.lineWidth = glowWidth;
+    ctx.beginPath();
+    ctx.moveTo(HALF_MAP, y);
+    ctx.lineTo(HALF_MAP, y + spacing/2);
+    ctx.stroke();
+
+    ctx.strokeStyle = pipeColor;
+    ctx.lineWidth = pipeWidth;
+    ctx.beginPath();
+    ctx.moveTo(HALF_MAP, y);
+    ctx.lineTo(HALF_MAP, y + spacing/2);
+    ctx.stroke();
+  }
+}
+
 function startGame() {
   menu.style.display = "none";
   gameContainer.style.display = "block";
@@ -484,11 +624,13 @@ function startGame() {
     speed: 3,
     score: 0,
     level: 1,
+    shield: false,
   };
 
   spawnFood();
   spawnBots(true);
   spawnVirus();
+  bonuses = [];
 
   gameStartTime = performance.now();
   gameOver = false;
