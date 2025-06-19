@@ -1,12 +1,11 @@
 <!DOCTYPE html>
-<html lang="fr" >
+<html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <title>Mini Agar.io amélioré</title>
+  <title>Mini Agar.io Progression</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Menu -->
   <div id="menu">
     <h1>Mini Agar.io</h1>
     <label for="pseudo">Pseudo :</label><br />
@@ -16,9 +15,13 @@
     <button id="startBtn">Jouer</button>
   </div>
 
-  <!-- Jeu -->
   <div id="gameContainer" style="display:none;">
-    <div id="score">Score : 0</div>
+    <div id="hud">
+      <div id="score">Score : 0</div>
+      <div id="level">Niveau : 1</div>
+      <div id="grade">Grade : Bronze 1</div>
+      <div id="timer">Temps restant : 05:00</div>
+    </div>
     <canvas id="game"></canvas>
   </div>
 
