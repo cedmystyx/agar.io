@@ -22,6 +22,9 @@ const HALF_MAP = MAP_SIZE / 2;
 const MAX_LEVEL = 2000;
 const MAX_PLAYER_RADIUS = 150;
 const PLAYER_BASE_SPEED = 3;
+const PLAYER_SPLIT_SPEED = 7;
+const PLAYER_FUSION_DELAY = 4000; // ms avant fusion possible
+const FUSION_SPEED = 0.05; // vitesse fusion radius
 
 const GRADES = [
   "Bronze 1","Bronze 2","Bronze 3",
@@ -48,7 +51,7 @@ let stats = {
   losses: parseInt(localStorage.getItem("losses")) || 0,
 };
 
-let player = null;
+let playerCells = []; // array des cellules du joueur (pour split/fusion)
 let bots = [];
 let foods = [];
 let virus = null;
@@ -91,6 +94,17 @@ window.addEventListener("touchmove", e => {
   }
 }, { passive:true });
 
+// Pour split sur clic gauche ou espace
+window.addEventListener("mousedown", e => {
+  if(!gameOver) splitPlayer();
+});
+window.addEventListener("keydown", e => {
+  if(e.code === "Space" && !gameOver){
+    e.preventDefault();
+    splitPlayer();
+  }
+});
+
 // === SPAWN NOURRITURE ===
 function spawnFood() {
   foods = [];
@@ -120,7 +134,7 @@ function createBot() {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
     r: 15 + Math.random() * 15,
-    color: hsl(${Math.random() * 360}, 60%, 50%),
+    color: `hsl(${Math.random() * 360}, 60%, 50%)`,
     speed: 1 + Math.random() * 1.5,
     target: null,
     score: 0,
@@ -183,23 +197,35 @@ setInterval(spawnBonuses, BONUS_SPAWN_INTERVAL_MS);
 
 function handleBonuses(){
   bonuses = bonuses.filter(bonus => {
-    if(dist(player, bonus) < player.r + bonus.r){
-      switch(bonus.type){
-        case "speed":
-          player.speed *= 1.5;
-          setTimeout(() => player.speed = PLAYER_BASE_SPEED, 5000);
-          break;
-        case "shield":
-          player.shield = true;
-          setTimeout(() => player.shield = false, 5000);
-          break;
-        case "reset":
-          player.r = 20;
-          player.targetR = 20;
-          player.score = 0;
-          break;
+    for(const cell of playerCells){
+      if(dist(cell, bonus) < cell.r + bonus.r){
+        switch(bonus.type){
+          case "speed":
+            playerCells.forEach(c => c.speed *= 1.5);
+            setTimeout(() => playerCells.forEach(c => c.speed = PLAYER_BASE_SPEED), 5000);
+            break;
+          case "shield":
+            playerCells.forEach(c => c.shield = true);
+            setTimeout(() => playerCells.forEach(c => c.shield = false), 5000);
+            break;
+          case "reset":
+            playerCells = [{
+              x: playerCells[0].x,
+              y: playerCells[0].y,
+              r: 20,
+              targetR: 20,
+              color: playerCells[0].color,
+              speed: PLAYER_BASE_SPEED,
+              score: 0,
+              shield: false,
+              lastSplit: 0,
+              dx: 0,
+              dy: 0
+            }];
+            break;
+        }
+        return false;
       }
-      return false;
     }
     return true;
   });
@@ -218,22 +244,102 @@ function drawBonuses(){
 // === POSITION SOURIS DANS LE MONDE ===
 function getMouseWorldPos(){
   return {
-    x: (mouse.x - canvas.width / 2) / cameraZoom + player.x,
-    y: (mouse.y - canvas.height / 2) / cameraZoom + player.y,
+    x: (mouse.x - canvas.width / 2) / cameraZoom + playerCells[0].x,
+    y: (mouse.y - canvas.height / 2) / cameraZoom + playerCells[0].y,
   };
 }
 
-// === DÉPLACEMENT JOUEUR VERS SOURIS ===
-function movePlayerTowardsMouse(){
-  const target = getMouseWorldPos();
-  const dx = target.x - player.x;
-  const dy = target.y - player.y;
-  const distance = Math.hypot(dx, dy);
-  if(distance > 1){
-    const moveDist = Math.min(distance, player.speed);
-    player.x += (dx / distance) * moveDist;
-    player.y += (dy / distance) * moveDist;
-    clampPosition(player);
+// === DÉPLACEMENT DES CELLULES JOUEUR VERS SOURIS ===
+function movePlayerCells(){
+  const now = performance.now();
+
+  playerCells.forEach((cell, idx) => {
+    // Cible = souris uniquement pour la cellule principale (indice 0)
+    // Les autres suivent la cellule principale (fusion)
+    let target;
+    if(idx === 0){
+      target = getMouseWorldPos();
+    } else {
+      target = playerCells[0];
+    }
+
+    const dx = target.x - cell.x;
+    const dy = target.y - cell.y;
+    const distance = Math.hypot(dx, dy);
+
+    // Vitesse avec accélération
+    let speed = cell.speed || PLAYER_BASE_SPEED;
+    if(idx !== 0){
+      // Plus petites cellules plus rapides pour suivre
+      speed *= 1.2;
+    }
+
+    if(distance > 1){
+      const moveDist = Math.min(distance, speed);
+      cell.x += (dx / distance) * moveDist;
+      cell.y += (dy / distance) * moveDist;
+      clampPosition(cell);
+    }
+
+    // Fusion automatique si possible
+    if(playerCells.length > 1 && now - cell.lastSplit > PLAYER_FUSION_DELAY){
+      const distToMain = dist(cell, playerCells[0]);
+      if(distToMain < cell.r + playerCells[0].r){
+        // Fusion
+        playerCells[0].targetR = Math.min(MAX_PLAYER_RADIUS, playerCells[0].targetR + cell.r * 0.8);
+        playerCells[0].score += cell.score || 0;
+        playerCells.splice(idx,1);
+      }
+    }
+
+    // Lissage taille
+    cell.r = lerp(cell.r, cell.targetR, FUSION_SPEED);
+  });
+}
+
+// === SPLIT JOUEUR ===
+function splitPlayer(){
+  if(playerCells.length >= 8) return; // max 8 splits
+
+  const mainCell = playerCells[0];
+  if(mainCell.r < 40) return; // trop petit pour split
+
+  const splitRadius = mainCell.r / 2;
+  mainCell.targetR = mainCell.r - splitRadius;
+  mainCell.lastSplit = performance.now();
+
+  // Nouvelle cellule lancée vers souris
+  const mousePos = getMouseWorldPos();
+  const angle = Math.atan2(mousePos.y - mainCell.y, mousePos.x - mainCell.x);
+
+  const newCell = {
+    x: mainCell.x + Math.cos(angle) * (mainCell.r + splitRadius + 5),
+    y: mainCell.y + Math.sin(angle) * (mainCell.r + splitRadius + 5),
+    r: splitRadius,
+    targetR: splitRadius,
+    color: mainCell.color,
+    speed: PLAYER_SPLIT_SPEED,
+    score: 0,
+    shield: false,
+    lastSplit: performance.now(),
+    dx: Math.cos(angle) * PLAYER_SPLIT_SPEED,
+    dy: Math.sin(angle) * PLAYER_SPLIT_SPEED
+  };
+  playerCells.push(newCell);
+}
+
+// === MOUVEMENT CELLULES SPLIT (lancées) ===
+function moveSplitCells(){
+  for(let i=1; i < playerCells.length; i++){
+    const cell = playerCells[i];
+
+    cell.x += cell.dx;
+    cell.y += cell.dy;
+    clampPosition(cell);
+
+    // Décélération progressive
+    cell.dx *= 0.9;
+    cell.dy *= 0.9;
   }
 }
 
@@ -257,9 +363,18 @@ function botsAI(){
         }
       });
 
-      if(player.r < bot.r * 0.9 && !gameOver){
-        possibleTargets.push(player);
-      }
+      // Pour bots, ils fuient joueur plus gros et ciblent joueur plus petit
+      playerCells.forEach(cell => {
+        if(cell.r < bot.r * 0.9 && !gameOver){
+          possibleTargets.push(cell);
+        }
+        if(cell.r > bot.r * 1.1 && !gameOver){
+          // Fuire joueur gros
+          const fleeX = bot.x - (cell.x - bot.x);
+          const fleeY = bot.y - (cell.y - bot.y);
+          possibleTargets.push({x: fleeX, y: fleeY, isPoint:true});
+        }
+      });
 
       // Points aléatoires
       for(let i=0; i<5; i++){
@@ -278,12 +393,6 @@ function botsAI(){
 
     let targetX = bot.target.x;
     let targetY = bot.target.y;
-
-    // Fuir joueur plus gros
-    if(bot.target === player && player.r > bot.r * 1.1){
-      targetX = bot.x - (player.x - bot.x);
-      targetY = bot.y - (player.y - bot.y);
-    }
 
     const dx = targetX - bot.x;
     const dy = targetY - bot.y;
@@ -307,7 +416,6 @@ function removeBot(index){
     respawnBot(bot);
   }, 2000);
 
-  // Hors carte pendant respawn
   bot.x = 99999;
   bot.y = 99999;
   bot.r = 0;
@@ -319,59 +427,57 @@ function removeBot(index){
 function eatCheck(){
   handleBonuses();
 
-  if(virus && dist(player, virus) < player.r + virus.r){
-    if(!player.shield){
-      player.r = Math.max(10, player.r / 2);
-      player.targetR = player.r; // Pour éviter animation size up/down incohérente
-      spawnVirus();
-    }
+  // Virus touche joueur (toutes cellules)
+  if(virus){
+    playerCells.forEach(cell => {
+      if(dist(cell, virus) < cell.r + virus.r){
+        if(!cell.shield){
+          cell.r = Math.max(10, cell.r / 2);
+          cell.targetR = cell.r;
+          spawnVirus();
+        }
+      }
+    });
   }
 
-  // Joueur mange nourriture
+  // Joueur mange nourriture (toutes cellules)
   for(let i = foods.length - 1; i >= 0; i--){
     let food = foods[i];
-    if(dist(player, food) < player.r + food.r){
-      foods.splice(i, 1);
-      player.targetR = Math.min(MAX_PLAYER_RADIUS, player.targetR + 0.5);
-      spawnRandomFood(1);
+    for(let cell of playerCells){
+      if(dist(cell, food) < cell.r + food.r){
+        foods.splice(i, 1);
+        cell.targetR = Math.min(MAX_PLAYER_RADIUS, cell.targetR + 0.5);
+        spawnRandomFood(1);
+        break;
+      }
     }
   }
 
-  // Joueur mange bots plus petits
+  // Joueur mange bots plus petits (toutes cellules)
   for(let i = bots.length - 1; i >= 0; i--){
     let bot = bots[i];
     if(bot.respawnTimeout) continue;
-    if(bot !== player && dist(player, bot) < player.r && player.r > bot.r * 1.1){
-      player.score += Math.floor(bot.r);
-      player.targetR = Math.min(MAX_PLAYER_RADIUS, player.targetR + bot.r * 0.6);
-      removeBot(i);
+    for(let cell of playerCells){
+      if(bot !== cell && dist(cell, bot) < cell.r && cell.r > bot.r * 1.1){
+        cell.score += Math.floor(bot.r);
+        cell.targetR = Math.min(MAX_PLAYER_RADIUS, cell.targetR + bot.r * 0.6);
+        removeBot(i);
+        break;
+      }
     }
   }
 
-  // Bots mangent nourriture
+  // Bots mangent joueur plus petits
   bots.forEach(bot => {
     if(bot.respawnTimeout) return;
-    for(let i = foods.length - 1; i >= 0; i--){
-      let food = foods[i];
-      if(dist(bot, food) < bot.r + food.r){
-        foods.splice(i, 1);
-        bot.score++;
-        bot.r = Math.min(MAX_PLAYER_RADIUS, bot.r + 0.2);
-        spawnRandomFood(1);
+    for(let cell of playerCells){
+      if(dist(bot, cell) < bot.r && bot.r > cell.r * 1.1 && !gameOver){
+        gameOver = true;
+        alert("Tu as été mangé ! Réessaie.");
+        stats.losses++;
+        localStorage.setItem("losses", stats.losses);
+        resetGame();
       }
-    }
-  });
-
-  // Bots mangent joueurs plus petits
-  bots.forEach(bot => {
-    if(bot.respawnTimeout) return;
-    if(dist(bot, player) < bot.r && bot.r > player.r * 1.1 && !gameOver){
-      // Player lost
-      gameOver = true;
-      alert("Tu as été mangé ! Réessaie.");
-      stats.losses++;
-      localStorage.setItem("losses", stats.losses);
-      resetGame();
     }
   });
 }
@@ -387,7 +493,7 @@ function drawCell(entity, options = {}) {
   ctx.fill();
 
   if (options.emoji) {
-    ctx.font = ${entity.r}px Arial;
+    ctx.font = `${entity.r}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "white";
@@ -443,15 +549,15 @@ function lerp(start, end, t){
 function draw(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Centre caméra sur joueur + zoom dynamique (taille influence zoom)
-  cameraZoom = 1 / (player.r / 50);
+  // Centre caméra sur cellule principale + zoom dynamique (taille influence zoom)
+  const mainCell = playerCells[0];
+  cameraZoom = 1 / (mainCell.r / 50);
   cameraZoom = clamp(cameraZoom, 0.3, 1.2);
 
   ctx.save();
-  // translation monde
   ctx.translate(canvas.width/2, canvas.height/2);
   ctx.scale(cameraZoom, cameraZoom);
-  ctx.translate(-player.x, -player.y);
+  ctx.translate(-mainCell.x, -mainCell.y);
 
   // DESSIN FOODS
   foods.forEach(food => drawCell(food, {emoji: food.emoji, color: "#66bb66"}));
@@ -468,22 +574,24 @@ function draw(){
     drawCell(bot, {color: bot.color});
   });
 
-  // DESSIN JOUEUR
-  player.r = lerp(player.r, player.targetR, 0.1);
-  drawCell(player, {color: player.color});
+  // DESSIN CELLULES JOUEUR
+  playerCells.forEach(cell => {
+    drawCell(cell, {color: cell.color});
+  });
 
   ctx.restore();
 
   // Mise à jour HUD
-  scoreDiv.textContent = "Score : " + Math.floor(player.score);
+  let totalScore = playerCells.reduce((sum, c) => sum + c.score, 0);
+  scoreDiv.textContent = "Score : " + Math.floor(totalScore);
   const elapsed = Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime));
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
-  timerDiv.textContent = Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")};
+  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")}`;
 
   if(elapsed <= 0){
     gameOver = true;
-    alert("Temps écoulé ! Ton score final : " + Math.floor(player.score));
+    alert("Temps écoulé ! Ton score final : " + Math.floor(totalScore));
     stats.wins++;
     localStorage.setItem("wins", stats.wins);
     resetGame();
@@ -492,13 +600,19 @@ function draw(){
 
 // === RESET JEU ===
 function resetGame(){
-  player.r = 20;
-  player.targetR = 20;
-  player.score = 0;
-  player.x = 0;
-  player.y = 0;
-  player.shield = false;
-  player.speed = PLAYER_BASE_SPEED;
+  playerCells = [{
+    x: 0,
+    y: 0,
+    r: 20,
+    targetR: 20,
+    color: colorPicker.value,
+    speed: PLAYER_BASE_SPEED,
+    score: 0,
+    shield: false,
+    lastSplit: 0,
+    dx: 0,
+    dy: 0
+  }];
   spawnFood();
   spawnBots();
   spawnVirus();
@@ -512,8 +626,9 @@ function resetGame(){
 
 // === UPDATE MENU STATS ===
 function updateMenuStats(){
-  menuLevelSpan.textContent = Math.floor(player.r);
-  menuGradeSpan.textContent = getGrade(player.r);
+  const mainCell = playerCells[0];
+  menuLevelSpan.textContent = Math.floor(mainCell.r);
+  menuGradeSpan.textContent = getGrade(mainCell.r);
   menuWinsSpan.textContent = stats.wins;
   menuLossesSpan.textContent = stats.losses;
 }
@@ -528,7 +643,8 @@ function gameLoop(timestamp){
     return;
   }
 
-  movePlayerTowardsMouse();
+  movePlayerCells();
+  moveSplitCells();
   botsAI();
   moveVirus();
   eatCheck();
@@ -545,7 +661,7 @@ startBtn.onclick = () => {
     alert("Veuillez entrer un pseudo !");
     return;
   }
-  player = {
+  playerCells = [{
     x: 0,
     y: 0,
     r: 20,
@@ -554,7 +670,10 @@ startBtn.onclick = () => {
     speed: PLAYER_BASE_SPEED,
     score: 0,
     shield: false,
-  };
+    lastSplit: 0,
+    dx: 0,
+    dy: 0
+  }];
   updateMenuStats();
   menu.style.display = "none";
   gameContainer.style.display = "block";
