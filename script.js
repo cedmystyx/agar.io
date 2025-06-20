@@ -538,10 +538,12 @@ function gameLoop(timestamp){
 // === Lancement jeu ===
 startBtn.onclick = () => {
   const name = pseudoInput.value.trim();
+  console.log("Pseudo :", name);
   if(name.length < 1){
     showMessage("Veuillez entrer un pseudo !");
     return;
   }
+  console.log("Couleur :", colorPicker.value);
   player = {
     name,
     x: 0,
@@ -553,15 +555,20 @@ startBtn.onclick = () => {
     score: 0,
     shield: false,
   };
+  console.log("Player créé :", player);
+
   updateMenuStats();
   menu.style.display = "none";
   gameContainer.style.display = "block";
+
   spawnFood();
   spawnBots();
   spawnVirus();
   bonuses = [];
+
   gameStartTime = performance.now();
   gameOver = false;
+  console.log("Lancement gameLoop");
   animationFrameId = requestAnimationFrame(gameLoop);
 };
 
