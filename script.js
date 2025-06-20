@@ -1,4 +1,4 @@
-// === Récupération DOM ===
+// === Récupération des éléments DOM ===
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const menu = document.getElementById("menu");
@@ -12,16 +12,15 @@ const menuLevelSpan = document.getElementById("menuLevel");
 const menuGradeSpan = document.getElementById("menuGrade");
 const menuWinsSpan = document.getElementById("menuWins");
 const menuLossesSpan = document.getElementById("menuLosses");
-const modalMessage = document.getElementById("modalMessage");
 
-// === Constantes & config ===
-const MAX_BOTS = 25;
-const FOOD_COUNT = 1600;
+// === CONSTANTES & CONFIGURATION ===
+const MAX_BOTS = 20;
+const FOOD_COUNT = 2200;
 const GAME_DURATION_MS = 3 * 60 * 1000; // 3 minutes
 const MAP_SIZE = 4500;
 const HALF_MAP = MAP_SIZE / 2;
 const MAX_LEVEL = 2000;
-const MAX_PLAYER_RADIUS = 160;
+const MAX_PLAYER_RADIUS = 150;
 const PLAYER_BASE_SPEED = 3;
 
 const GRADES = [
@@ -37,6 +36,7 @@ const GRADES = [
 ];
 
 const FOOD_EMOJIS = ["🍰","🍉","🍕","🍔","🍦","🍩","🍇","🍒","🍎","🍌","🍟","🌮"];
+
 const BONUS_TYPES = ["speed", "shield", "reset"];
 const BONUS_COLORS = { speed: "yellow", shield: "cyan", reset: "white" };
 const MAX_BONUSES = 5;
@@ -60,56 +60,39 @@ let gameOver = false;
 
 let mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
-let animationFrameId = null;
+let animationFrameId;
 let lastTime = 0;
 
-// === Utilitaires ===
+// === UTILITAIRES ===
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const getGrade = (level) => {
-  if(level >= MAX_LEVEL) return GRADES[GRADES.length - 1];
+  if (level >= MAX_LEVEL) return GRADES[GRADES.length - 1];
   const index = Math.floor(level / (MAX_LEVEL / (GRADES.length - 1)));
   return GRADES[index];
 };
 
-function showMessage(text){
-  modalMessage.textContent = text;
-  modalMessage.style.display = "block";
-  setTimeout(() => {
-    modalMessage.style.display = "none";
-  }, 2500);
-}
-modalMessage.addEventListener("click", () => {
-  modalMessage.style.display = "none";
-});
-
-// === Canvas resize avec DPI ===
-function resizeCanvas(){
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
-  canvas.style.width = window.innerWidth + "px";
-  canvas.style.height = window.innerHeight + "px";
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.scale(dpr, dpr);
+// === CANVAS & INPUT ===
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 }
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-// === Souris & touch ===
-function updatePointerPos(x, y){
-  mouse.x = clamp(x, 0, window.innerWidth);
-  mouse.y = clamp(y, 0, window.innerHeight);
-}
-window.addEventListener("mousemove", e => updatePointerPos(e.clientX, e.clientY));
+window.addEventListener("mousemove", e => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
 window.addEventListener("touchmove", e => {
   if(e.touches.length > 0){
-    updatePointerPos(e.touches[0].clientX, e.touches[0].clientY);
+    mouse.x = e.touches[0].clientX;
+    mouse.y = e.touches[0].clientY;
   }
 }, { passive:true });
 
-// === Spawn nourriture ===
-function spawnFood(){
+// === SPAWN NOURRITURE ===
+function spawnFood() {
   foods = [];
   for(let i=0; i < FOOD_COUNT; i++){
     foods.push({
@@ -129,20 +112,16 @@ function spawnRandomFood(count=5){
       emoji: FOOD_EMOJIS[Math.floor(Math.random() * FOOD_EMOJIS.length)]
     });
   }
-  // Limiter la taille du tableau
-  if(foods.length > FOOD_COUNT * 1.2){
-    foods.splice(FOOD_COUNT);
-  }
 }
 
-// === Spawn bots amélioré (taille aléatoire) ===
+// === SPAWN BOTS ===
 function createBot() {
   return {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
-    r: 10 + Math.random() * 45, // taille aléatoire entre 10 et 55 (plus varié)
-    color: `hsl(${Math.random() * 360}, 60%, 50%)`,
-    speed: 1 + Math.random() * 1.7,
+    r: 15 + Math.random() * 15,
+    color: hsl(${Math.random() * 360}, 60%, 50%),
+    speed: 1 + Math.random() * 1.5,
     target: null,
     score: 0,
     respawnTimeout: null,
@@ -150,7 +129,7 @@ function createBot() {
   };
 }
 function spawnBots(initial = true) {
-  if(initial) bots = [];
+  if (initial) bots = [];
   while (bots.length < MAX_BOTS) {
     bots.push(createBot());
   }
@@ -159,13 +138,13 @@ function respawnBot(bot){
   Object.assign(bot, createBot());
 }
 
-// === Clamp position ===
+// === POSITION DANS LA MAP ===
 function clampPosition(entity){
   entity.x = clamp(entity.x, -HALF_MAP, HALF_MAP);
   entity.y = clamp(entity.y, -HALF_MAP, HALF_MAP);
 }
 
-// === Virus ===
+// === VIRUS ===
 function spawnVirus(){
   virus = {
     x: (Math.random() - 0.5) * MAP_SIZE,
@@ -188,7 +167,7 @@ function moveVirus(){
   clampPosition(virus);
 }
 
-// === Bonus ===
+// === BONUS ===
 function spawnBonuses(){
   if(bonuses.length >= MAX_BONUSES) return;
   const type = BONUS_TYPES[Math.floor(Math.random() * BONUS_TYPES.length)];
@@ -207,7 +186,7 @@ function handleBonuses(){
     if(dist(player, bonus) < player.r + bonus.r){
       switch(bonus.type){
         case "speed":
-          player.speed = PLAYER_BASE_SPEED * 1.7;
+          player.speed *= 1.5;
           setTimeout(() => player.speed = PLAYER_BASE_SPEED, 5000);
           break;
         case "shield":
@@ -226,7 +205,7 @@ function handleBonuses(){
   });
 }
 
-// === Dessin bonus ===
+// === DESSIN BONUS ===
 function drawBonuses(){
   bonuses.forEach(bonus => {
     ctx.fillStyle = bonus.color;
@@ -236,15 +215,15 @@ function drawBonuses(){
   });
 }
 
-// === Position souris dans monde ===
+// === POSITION SOURIS DANS LE MONDE ===
 function getMouseWorldPos(){
   return {
-    x: (mouse.x - canvas.width / (2 * (window.devicePixelRatio || 1))) / cameraZoom + player.x,
-    y: (mouse.y - canvas.height / (2 * (window.devicePixelRatio || 1))) / cameraZoom + player.y,
+    x: (mouse.x - canvas.width / 2) / cameraZoom + player.x,
+    y: (mouse.y - canvas.height / 2) / cameraZoom + player.y,
   };
 }
 
-// === Déplacement joueur vers souris ===
+// === DÉPLACEMENT JOUEUR VERS SOURIS ===
 function movePlayerTowardsMouse(){
   const target = getMouseWorldPos();
   const dx = target.x - player.x;
@@ -258,7 +237,7 @@ function movePlayerTowardsMouse(){
   }
 }
 
-// === IA bots améliorée ===
+// === IA BOTS ===
 function botsAI(){
   const now = performance.now();
 
@@ -266,13 +245,12 @@ function botsAI(){
     if(bot.respawnTimeout) return;
 
     if(!bot.changeTargetTime || now > bot.changeTargetTime){
-      bot.changeTargetTime = now + 1500 + Math.random() * 2500;
+      bot.changeTargetTime = now + 2000 + Math.random() * 3000;
 
       let possibleTargets = [];
 
       possibleTargets.push(...foods);
 
-      // Bots plus petits
       bots.forEach(otherBot => {
         if(otherBot !== bot && !otherBot.respawnTimeout && otherBot.r < bot.r * 0.9){
           possibleTargets.push(otherBot);
@@ -283,11 +261,11 @@ function botsAI(){
         possibleTargets.push(player);
       }
 
-      // Points aléatoires dans zone limitée autour du bot (amélioration IA)
-      for(let i=0; i<8; i++){
+      // Points aléatoires
+      for(let i=0; i<5; i++){
         possibleTargets.push({
-          x: bot.x + (Math.random() - 0.5) * 400,
-          y: bot.y + (Math.random() - 0.5) * 400,
+          x: (Math.random() - 0.5) * MAP_SIZE,
+          y: (Math.random() - 0.5) * MAP_SIZE,
           r: 0,
           isPoint: true,
         });
@@ -320,232 +298,254 @@ function botsAI(){
   });
 }
 
-// === Vérification des collisions & nourrir ===
+// === SUPPRESSION & RESPAWN BOT ===
+function removeBot(index){
+  const bot = bots[index];
+  if(bot.respawnTimeout) return;
+
+  bot.respawnTimeout = setTimeout(() => {
+    respawnBot(bot);
+  }, 2000);
+
+  // Hors carte pendant respawn
+  bot.x = 99999;
+  bot.y = 99999;
+  bot.r = 0;
+  bot.target = null;
+  bot.score = 0;
+}
+
+// === VÉRIFICATIONS & INTERACTIONS ===
 function eatCheck(){
-  // Nourriture
+  handleBonuses();
+
+  if(virus && dist(player, virus) < player.r + virus.r){
+    if(!player.shield){
+      player.r = Math.max(10, player.r / 2);
+      player.targetR = player.r; // Pour éviter animation size up/down incohérente
+      spawnVirus();
+    }
+  }
+
+  // Joueur mange nourriture
   for(let i = foods.length - 1; i >= 0; i--){
-    if(dist(player, foods[i]) < player.r + foods[i].r){
-      player.score++;
-      player.targetR = Math.min(MAX_PLAYER_RADIUS, 20 + player.score * 0.8);
-      foods.splice(i,1);
+    let food = foods[i];
+    if(dist(player, food) < player.r + food.r){
+      foods.splice(i, 1);
+      player.targetR = Math.min(MAX_PLAYER_RADIUS, player.targetR + 0.5);
       spawnRandomFood(1);
     }
   }
 
-  // Bonus
-  handleBonuses();
-
-  // Virus : touche le joueur => game over
-  if(virus && dist(player, virus) < player.r + virus.r){
-    if(player.shield){
-      player.shield = false; // shield absorb virus once
-      virus.x = (Math.random() - 0.5) * MAP_SIZE;
-      virus.y = (Math.random() - 0.5) * MAP_SIZE;
-    } else {
-      endGame(false);
+  // Joueur mange bots plus petits
+  for(let i = bots.length - 1; i >= 0; i--){
+    let bot = bots[i];
+    if(bot.respawnTimeout) continue;
+    if(bot !== player && dist(player, bot) < player.r && player.r > bot.r * 1.1){
+      player.score += Math.floor(bot.r);
+      player.targetR = Math.min(MAX_PLAYER_RADIUS, player.targetR + bot.r * 0.6);
+      removeBot(i);
     }
   }
 
-  // Bots mangent nourriture & joueur & bots plus petits
-  for(let i = bots.length - 1; i >= 0; i--){
-    const bot = bots[i];
-    if(bot.respawnTimeout) continue;
-
-    // Mange nourriture
-    for(let j = foods.length -1; j>=0; j--){
-      if(dist(bot, foods[j]) < bot.r + foods[j].r){
+  // Bots mangent nourriture
+  bots.forEach(bot => {
+    if(bot.respawnTimeout) return;
+    for(let i = foods.length - 1; i >= 0; i--){
+      let food = foods[i];
+      if(dist(bot, food) < bot.r + food.r){
+        foods.splice(i, 1);
         bot.score++;
-        bot.r = Math.min(MAX_PLAYER_RADIUS, 10 + bot.score * 0.7);
-        foods.splice(j,1);
+        bot.r = Math.min(MAX_PLAYER_RADIUS, bot.r + 0.2);
         spawnRandomFood(1);
       }
     }
-
-    // Mange joueur
-    if(!gameOver && player.r * 0.9 < bot.r && dist(bot, player) < bot.r + player.r){
-      endGame(false);
-      return;
-    }
-
-    // Mange bots plus petits
-    for(let k = bots.length -1; k>=0; k--){
-      if(k === i) continue;
-      const other = bots[k];
-      if(other.respawnTimeout) continue;
-      if(other.r * 0.9 < bot.r && dist(bot, other) < bot.r + other.r){
-        bot.score += other.score + 1;
-        bot.r = Math.min(MAX_PLAYER_RADIUS, bot.r + other.r * 0.8);
-        other.respawnTimeout = setTimeout(() => {
-          respawnBot(other);
-          other.respawnTimeout = null;
-        }, 12000);
-        bots.splice(k, 1);
-      }
-    }
-  }
-}
-
-// === Zoom caméra suivant taille joueur ===
-function updateCameraZoom(){
-  const minZoom = 0.25;
-  const maxZoom = 1.6;
-  const normalized = (player.r - 20) / (MAX_PLAYER_RADIUS - 20);
-  cameraZoom = maxZoom - (maxZoom - minZoom) * normalized;
-}
-
-// === Animation interpolation ===
-function lerp(a, b, t){
-  return a + (b - a) * t;
-}
-
-// === Mise à jour joueur (taille) ===
-function updatePlayerSize(delta){
-  player.r = lerp(player.r, player.targetR, 0.15);
-}
-
-// === Affichage texte stylé ===
-function drawText(text, x, y, size = 20, color = "#0f0"){
-  ctx.fillStyle = color;
-  ctx.font = `${size}px Arial Black, Arial, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.shadowColor = "#0f0";
-  ctx.shadowBlur = 6;
-  ctx.fillText(text, x, y);
-  ctx.shadowBlur = 0;
-}
-
-// === Dessin du joueur & bots & nourriture & virus ===
-function draw(){
-  // Fond noir
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-
-  // Translate au centre écran et zoom caméra
-  ctx.translate(canvas.width / (2 * (window.devicePixelRatio || 1)), canvas.height / (2 * (window.devicePixelRatio || 1)));
-  ctx.scale(cameraZoom, cameraZoom);
-
-  // Translate inverse joueur pour le centrer
-  ctx.translate(-player.x, -player.y);
-
-  // Dessiner nourriture
-  foods.forEach(food => {
-    ctx.font = `${food.r * 2.5}px serif`;
-    ctx.textAlign = "center";
-    ctx.fillText(food.emoji, food.x, food.y + food.r);
   });
 
-  // Dessiner bonus
-  drawBonuses();
-
-  // Dessiner virus
-  if(virus){
-    ctx.fillStyle = virus.color;
-    ctx.beginPath();
-    ctx.arc(virus.x, virus.y, virus.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Dessiner bots
+  // Bots mangent joueurs plus petits
   bots.forEach(bot => {
     if(bot.respawnTimeout) return;
-    ctx.fillStyle = bot.color;
-    ctx.beginPath();
-    ctx.arc(bot.x, bot.y, bot.r, 0, Math.PI * 2);
-    ctx.fill();
-    // Affichage score bot au-dessus
-    drawText(bot.score.toString(), bot.x, bot.y - bot.r - 10, 16, "#ccc");
+    if(dist(bot, player) < bot.r && bot.r > player.r * 1.1 && !gameOver){
+      // Player lost
+      gameOver = true;
+      alert("Tu as été mangé ! Réessaie.");
+      stats.losses++;
+      localStorage.setItem("losses", stats.losses);
+      resetGame();
+    }
   });
+}
 
-  // Dessiner joueur (avec shield)
-  ctx.fillStyle = player.color;
+// === DESSIN FONCTIONS ===
+function drawCell(entity, options = {}) {
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+  ctx.fillStyle = options.color || entity.color || "#00ff00";
+  ctx.shadowColor = options.color || entity.color || "#00ff00";
+  ctx.shadowBlur = 10;
+  ctx.arc(entity.x, entity.y, entity.r, 0, Math.PI * 2);
   ctx.fill();
-  if(player.shield){
+
+  if (options.emoji) {
+    ctx.font = ${entity.r}px Arial;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "white";
+    ctx.fillText(options.emoji, entity.x, entity.y + entity.r * 0.1);
+  }
+
+  if(entity.shield){
     ctx.strokeStyle = "cyan";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(player.x, player.y, player.r + 4, 0, Math.PI * 2);
+    ctx.arc(entity.x, entity.y, entity.r + 5, 0, Math.PI * 2);
     ctx.stroke();
   }
-
-  // Affichage score joueur
-  drawText(player.score.toString(), player.x, player.y - player.r - 10, 22, player.color);
-
   ctx.restore();
 }
 
-// === Mise à jour UI menu & HUD ===
-function updateMenuStats(){
-  const level = Math.floor(player.score / 7);
-  const grade = getGrade(level);
-  menuLevelSpan.textContent = level.toString();
-  menuGradeSpan.textContent = grade;
-  menuWinsSpan.textContent = stats.wins.toString();
-  menuLossesSpan.textContent = stats.losses.toString();
-}
+function drawVirus(v) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.fillStyle = v.color;
+  ctx.shadowColor = "red";
+  ctx.shadowBlur = 15;
+  ctx.arc(v.x, v.y, v.r, 0, Math.PI * 2);
+  ctx.fill();
 
-function updateHUD(){
-  scoreDiv.textContent = `Score : ${player.score}`;
-  const timePassed = Math.floor((performance.now() - gameStartTime) / 1000);
-  const timeLeft = Math.max(0, GAME_DURATION_MS / 1000 - timePassed);
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")}`;
-}
-
-// === Fin du jeu ===
-function endGame(won){
-  gameOver = true;
-  cancelAnimationFrame(animationFrameId);
-  if(won){
-    stats.wins++;
-    showMessage("Bravo, tu as gagné !");
-  } else {
-    stats.losses++;
-    showMessage("Perdu... Essaie encore !");
+  // Virus spikes
+  for(let i=0; i<12; i++){
+    const angle = (i * Math.PI * 2) / 12;
+    const spikeStart = {
+      x: v.x + Math.cos(angle) * v.r,
+      y: v.y + Math.sin(angle) * v.r
+    };
+    const spikeEnd = {
+      x: v.x + Math.cos(angle) * (v.r + 12),
+      y: v.y + Math.sin(angle) * (v.r + 12)
+    };
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(spikeStart.x, spikeStart.y);
+    ctx.lineTo(spikeEnd.x, spikeEnd.y);
+    ctx.stroke();
   }
-  localStorage.setItem("wins", stats.wins);
-  localStorage.setItem("losses", stats.losses);
+  ctx.restore();
+}
+
+// === ANIMATION DE LA TAILLE (LISSAGE) ===
+function lerp(start, end, t){
+  return start + (end - start) * t;
+}
+
+// === CAMÉRA & DESSIN ===
+function draw(){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Centre caméra sur joueur + zoom dynamique (taille influence zoom)
+  cameraZoom = 1 / (player.r / 50);
+  cameraZoom = clamp(cameraZoom, 0.3, 1.2);
+
+  ctx.save();
+  // translation monde
+  ctx.translate(canvas.width/2, canvas.height/2);
+  ctx.scale(cameraZoom, cameraZoom);
+  ctx.translate(-player.x, -player.y);
+
+  // DESSIN FOODS
+  foods.forEach(food => drawCell(food, {emoji: food.emoji, color: "#66bb66"}));
+
+  // DESSIN BONUS
+  drawBonuses();
+
+  // DESSIN VIRUS
+  if(virus) drawVirus(virus);
+
+  // DESSIN BOTS
+  bots.forEach(bot => {
+    if(bot.respawnTimeout) return;
+    drawCell(bot, {color: bot.color});
+  });
+
+  // DESSIN JOUEUR
+  player.r = lerp(player.r, player.targetR, 0.1);
+  drawCell(player, {color: player.color});
+
+  ctx.restore();
+
+  // Mise à jour HUD
+  scoreDiv.textContent = "Score : " + Math.floor(player.score);
+  const elapsed = Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime));
+  const minutes = Math.floor(elapsed / 60000);
+  const seconds = Math.floor((elapsed % 60000) / 1000);
+  timerDiv.textContent = Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")};
+
+  if(elapsed <= 0){
+    gameOver = true;
+    alert("Temps écoulé ! Ton score final : " + Math.floor(player.score));
+    stats.wins++;
+    localStorage.setItem("wins", stats.wins);
+    resetGame();
+  }
+}
+
+// === RESET JEU ===
+function resetGame(){
+  player.r = 20;
+  player.targetR = 20;
+  player.score = 0;
+  player.x = 0;
+  player.y = 0;
+  player.shield = false;
+  player.speed = PLAYER_BASE_SPEED;
+  spawnFood();
+  spawnBots();
+  spawnVirus();
+  bonuses = [];
+  gameStartTime = performance.now();
+  gameOver = false;
+  updateMenuStats();
   menu.style.display = "block";
   gameContainer.style.display = "none";
-  updateMenuStats();
 }
 
-// === Loop principal ===
+// === UPDATE MENU STATS ===
+function updateMenuStats(){
+  menuLevelSpan.textContent = Math.floor(player.r);
+  menuGradeSpan.textContent = getGrade(player.r);
+  menuWinsSpan.textContent = stats.wins;
+  menuLossesSpan.textContent = stats.losses;
+}
+
+// === BOUCLE PRINCIPALE ===
 function gameLoop(timestamp){
   if(!lastTime) lastTime = timestamp;
   const delta = timestamp - lastTime;
   lastTime = timestamp;
-
-  if(gameOver) return;
+  if(gameOver){
+    cancelAnimationFrame(animationFrameId);
+    return;
+  }
 
   movePlayerTowardsMouse();
   botsAI();
   moveVirus();
   eatCheck();
-  handleBonuses();
-
-  updatePlayerSize(delta);
-  updateCameraZoom();
-  updateHUD();
 
   draw();
 
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// === Lancement jeu ===
+// === START GAME ===
 startBtn.onclick = () => {
   const name = pseudoInput.value.trim();
-  console.log("Pseudo :", name);
   if(name.length < 1){
-    showMessage("Veuillez entrer un pseudo !");
+    alert("Veuillez entrer un pseudo !");
     return;
   }
-  console.log("Couleur :", colorPicker.value);
   player = {
-    name,
     x: 0,
     y: 0,
     r: 20,
@@ -555,22 +555,14 @@ startBtn.onclick = () => {
     score: 0,
     shield: false,
   };
-  console.log("Player créé :", player);
-
   updateMenuStats();
   menu.style.display = "none";
   gameContainer.style.display = "block";
-
   spawnFood();
   spawnBots();
   spawnVirus();
   bonuses = [];
-
   gameStartTime = performance.now();
   gameOver = false;
-  console.log("Lancement gameLoop");
   animationFrameId = requestAnimationFrame(gameLoop);
 };
-
-// === Initialisation UI ===
-updateMenuStats();
