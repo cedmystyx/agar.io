@@ -7,44 +7,56 @@ html, body {
   color: white;
 }
 
+/* === MENU PRINCIPAL === */
 #menu {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.85);
+  background: rgba(0, 0, 0, 0.85);
   padding: 30px 50px;
-  border-radius: 10px;
+  border-radius: 12px;
+  border: 2px solid #00ff00;
+  box-shadow: 0 0 20px #00ff0055;
   text-align: center;
   user-select: none;
   width: 320px;
+  max-width: 90vw;
 }
 
+/* === FORMULAIRES === */
 #menu input[type=text], #menu input[type=color] {
   font-size: 18px;
   padding: 8px;
   margin-top: 10px;
   width: 200px;
-  border-radius: 5px;
+  border-radius: 6px;
   border: none;
   outline: none;
+  background: #222;
+  color: #00ff00;
+  box-shadow: 0 0 8px #00ff0044 inset;
 }
 
+/* === BOUTON START === */
 #menu button {
   margin-top: 15px;
   font-size: 18px;
-  padding: 10px 20px;
+  padding: 10px 25px;
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: 6px;
   border: none;
-  background: #4CAF50;
+  background: linear-gradient(45deg, #00ff00, #007700);
   color: white;
-  transition: background 0.3s ease;
+  transition: background 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 0 10px #00ff00aa;
 }
 #menu button:hover {
-  background: #399d3b;
+  background: linear-gradient(45deg, #00cc00, #005500);
+  transform: scale(1.05);
 }
 
+/* === GAME === */
 #gameContainer {
   width: 100vw;
   height: 100vh;
@@ -53,11 +65,12 @@ html, body {
 
 canvas {
   display: block;
-  background: #222;
+  background: #1a1a1a;
   width: 100vw;
   height: 100vh;
 }
 
+/* === HUD === */
 #hud {
   position: absolute;
   top: 10px;
@@ -71,11 +84,42 @@ canvas {
 }
 
 #hud > div {
-  margin-bottom: 5px;
+  margin-bottom: 6px;
 }
 
-/* Virus star shape */
+/* === LOGO SVG === */
+#logo svg text {
+  text-shadow: 0 0 6px #00ff00aa;
+}
+
+/* === ANIMATION BONUS / VIRUS === */
 @keyframes pulseGlow {
   0%, 100% { filter: drop-shadow(0 0 5px red); }
   50% { filter: drop-shadow(0 0 15px yellow); }
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 500px) {
+  #menu {
+    padding: 20px;
+    width: 90%;
+  }
+
+  #menu input[type=text], #menu input[type=color] {
+    width: 100%;
+  }
+
+  #menu button {
+    width: 100%;
+  }
+
+  #hud {
+    font-size: 14px;
+    right: 5px;
+    top: 5px;
+  }
+
+  canvas {
+    background: #111;
+  }
 }
