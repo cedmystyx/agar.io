@@ -101,24 +101,27 @@ window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
 // === SPAWN FOOD ===
+const FOOD_EMOJIS = ["🍕", "🍔", "🌭", "🍎", "🍉", "🍇", "🍩", "🍬", "🥐", "🍫"];
+
 function spawnFood() {
-  foods.length = 0; // plus rapide que new array
+  foods.length = 0;
   for(let i=0; i < FOOD_COUNT; i++){
     foods.push({
       x: (Math.random() - 0.5) * MAP_SIZE,
       y: (Math.random() - 0.5) * MAP_SIZE,
       r: 10,
-      emoji: "🍕"
+      emoji: FOOD_EMOJIS[Math.floor(Math.random() * FOOD_EMOJIS.length)]
     });
   }
 }
+
 function spawnRandomFood(count=5){
   for(let i=0; i < count; i++){
     foods.push({
       x: (Math.random() - 0.5) * MAP_SIZE,
       y: (Math.random() - 0.5) * MAP_SIZE,
       r: 10,
-      emoji: "🍕"
+      emoji: FOOD_EMOJIS[Math.floor(Math.random() * FOOD_EMOJIS.length)]
     });
   }
 }
