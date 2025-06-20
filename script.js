@@ -147,7 +147,8 @@ function spawnBots(initial = true) {
 }
 function respawnBot(bot){
   const playerMainR = playerCells[0]?.r || 20;
-  const newRadius = playerMainR + 10 + Math.random() * 20;
+  const variation = Math.random() * 40 - 20; // entre -20 et +20
+  const newRadius = clamp(playerMainR + variation, 10, MAX_PLAYER_RADIUS - 10);
   Object.assign(bot, {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
