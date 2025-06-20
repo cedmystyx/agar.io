@@ -470,8 +470,8 @@ function drawPlayerCells(offsetX, offsetY){
     // Pseudo joueur (seulement sur la cellule principale)
     if(cell === playerCells[0]){
       ctx.fillStyle = "#000";
-      ctx.font = `${Math.min(cell.r * 1.5, 20) * cameraZoom}px Arial Black`;
-      ctx.fillText(playerName, screenX, screenY);
+      ctx.font = `${Math.min(cell.r * 1.5, 24) * cameraZoom}px Arial Black`;
+      ctx.fillText(cell.pseudo || "Joueur", screenX, screenY);
     }
   });
 
@@ -479,39 +479,29 @@ function drawPlayerCells(offsetX, offsetY){
 }
 
 function drawLeaderboard(){
-  // Trie par score descendant (joueur + bots)
-  let entries = [];
-  if(playerCells.length > 0){
-    entries.push({name: playerName, score: Math.floor(playerCells[0].r)});
-  }
-  bots.forEach(bot => {
-    if(!bot.respawnTimeout)
-      entries.push({name: bot.name, score: Math.floor(bot.r)});
-  });
-  entries.sort((a,b) => b.score - a.score);
-  leaderboardDiv.innerHTML = "<strong>Classement</strong><br>";
-  entries.slice(0, 10).forEach((entry,i) => {
-    leaderboardDiv.innerHTML += `${i+1}. ${entry.name} - ${entry.score}<br>`;
+  leaderboardDiv.innerHTML = "";
+  const sortedPlayers = [...bots, ...playerCells];
+  sortedPlayers.sort((a, b) => (b.score || b.r) - (a.score || a.r));
+  const topPlayers = sortedPlayers.slice(0, 10);
+
+  topPlayers.forEach((p, i) => {
+    const div = document.createElement("div");
+    div.textContent = `${i + 1}. ${p.name || p.pseudo || "Joueur"} - Score: ${Math.floor(p.score || p.r)}`;
+    leaderboardDiv.appendChild(div);
   });
 }
 
-// === BARRIÈRE RÉALISTE NÉON ANIMÉE ===
 let barrierGlowPulse = 0;
 let barrierGlowDirection = 1;
-let barrierParticles = [];
 
-function initBarrierParticles() {
-  barrierParticles = [];
-  const countPerSide = 40;
-  const spacing = MAP_SIZE / countPerSide;
-  for(let i = 0; i < countPerSide; i++) {
-    barrierParticles.push({side: "left", pos: i * spacing, speed: 50 + Math.random() * 30, offset: Math.random() * spacing});
-    barrierParticles.push({side: "right", pos: i * spacing, speed: 50 + Math.random() * 30, offset: Math.random() * spacing});
-    barrierParticles.push({side: "top", pos: i * spacing, speed: 50 + Math.random() * 30, offset: Math.random() * spacing});
-    barrierParticles.push({side: "bottom", pos: i * spacing, speed: 50 + Math.random() * 30, offset: Math.random() * spacing});
-  }
+const barrierParticles = [];
+for(let i=0; i < 40; i++){
+  barrierParticles.push({
+    side: ["left","right","top","bottom"][i % 4],
+    offset: Math.random() * MAP_SIZE,
+    speed: 0.3 + Math.random() * 0.7
+  });
 }
-initBarrierParticles();
 
 function drawBarrier(offsetX, offsetY, deltaTime) {
   const thickness = 60 * cameraZoom;
@@ -519,6 +509,7 @@ function drawBarrier(offsetX, offsetY, deltaTime) {
 
   ctx.save();
 
+  // Pulsation glow
   barrierGlowPulse += barrierGlowDirection * deltaTime * 0.005;
   if(barrierGlowPulse > 1) {
     barrierGlowPulse = 1;
@@ -539,11 +530,12 @@ function drawBarrier(offsetX, offsetY, deltaTime) {
   ctx.shadowColor = "#00ff00";
   ctx.shadowBlur = glowIntensity;
 
-  const left = ( -HALF_MAP - offsetX) * cameraZoom + canvas.width / 2;
-  const right = ( HALF_MAP - offsetX) * cameraZoom + canvas.width / 2;
-  const top = ( -HALF_MAP - offsetY) * cameraZoom + canvas.height / 2;
-  const bottom = ( HALF_MAP - offsetY) * cameraZoom + canvas.height / 2;
+  const left = (-HALF_MAP - offsetX) * cameraZoom + canvas.width / 2;
+  const right = (HALF_MAP - offsetX) * cameraZoom + canvas.width / 2;
+  const top = (-HALF_MAP - offsetY) * cameraZoom + canvas.height / 2;
+  const bottom = (HALF_MAP - offsetY) * cameraZoom + canvas.height / 2;
 
+  // Draw solid borders (4 sides)
   ctx.beginPath();
   ctx.moveTo(left, top + inner);
   ctx.lineTo(left, bottom - inner);
@@ -555,7 +547,7 @@ function drawBarrier(offsetX, offsetY, deltaTime) {
   ctx.lineTo(right - inner, bottom);
   ctx.stroke();
 
-  // Particules courant
+  // Draw moving particles on border
   ctx.lineWidth = 4;
   ctx.strokeStyle = "#7fff7f";
   ctx.shadowBlur = 15;
@@ -569,26 +561,26 @@ function drawBarrier(offsetX, offsetY, deltaTime) {
 
     switch(p.side) {
       case "left":
-        x1 = ( -HALF_MAP - offsetX) * cameraZoom + canvas.width / 2 + thickness/3;
-        y1 = ( -HALF_MAP + p.offset ) * cameraZoom + canvas.height / 2;
+        x1 = left + thickness/3;
+        y1 = top + p.offset * cameraZoom;
         x2 = x1;
         y2 = y1 + size;
         break;
       case "right":
-        x1 = ( HALF_MAP - offsetX) * cameraZoom + canvas.width / 2 - thickness/3;
-        y1 = ( HALF_MAP - p.offset ) * cameraZoom + canvas.height / 2;
+        x1 = right - thickness/3;
+        y1 = bottom - p.offset * cameraZoom;
         x2 = x1;
         y2 = y1 - size;
         break;
       case "top":
-        x1 = ( -HALF_MAP + p.offset ) * cameraZoom + canvas.width / 2;
-        y1 = ( -HALF_MAP - offsetY) * cameraZoom + canvas.height / 2 + thickness/3;
+        x1 = left + p.offset * cameraZoom;
+        y1 = top + thickness/3;
         x2 = x1 + size;
         y2 = y1;
         break;
       case "bottom":
-        x1 = ( HALF_MAP - p.offset ) * cameraZoom + canvas.width / 2;
-        y1 = ( HALF_MAP - offsetY) * cameraZoom + canvas.height / 2 - thickness/3;
+        x1 = right - p.offset * cameraZoom;
+        y1 = bottom - thickness/3;
         x2 = x1 - size;
         y2 = y1;
         break;
@@ -600,81 +592,48 @@ function drawBarrier(offsetX, offsetY, deltaTime) {
     ctx.stroke();
   });
 
-  // Segments clignotants
+  // Draw blinking segments on borders
   ctx.lineWidth = thickness / 4;
+  const segmentLength = MAP_SIZE / 10;
+
   for(let i=0; i < 10; i++) {
     const phase = (performance.now() / 500 + i) % 2;
     const alpha = 0.5 + 0.5 * Math.sin(phase * Math.PI);
 
     ctx.strokeStyle = `rgba(0,255,0,${alpha.toFixed(2)})`;
 
-    const segmentLength = MAP_SIZE / 10;
-
-    // Haut
+    // Top
     ctx.beginPath();
-    ctx.moveTo(( -HALF_MAP + i * segmentLength - offsetX) * cameraZoom + canvas.width / 2, ( -HALF_MAP - offsetY) * cameraZoom + canvas.height / 2 + inner);
-    ctx.lineTo(( -HALF_MAP + (i+1) * segmentLength - offsetX) * cameraZoom + canvas.width / 2, ( -HALF_MAP - offsetY) * cameraZoom + canvas.height / 2 + inner);
+    ctx.moveTo(left + i * segmentLength * cameraZoom, top + inner);
+    ctx.lineTo(left + (i+1) * segmentLength * cameraZoom, top + inner);
     ctx.stroke();
 
-    // Bas
+    // Bottom
     ctx.beginPath();
-    ctx.moveTo(( -HALF_MAP + i * segmentLength - offsetX) * cameraZoom + canvas.width / 2, ( HALF_MAP - offsetY) * cameraZoom + canvas.height / 2 - inner);
-    ctx.lineTo(( -HALF_MAP + (i+1) * segmentLength - offsetX) * cameraZoom + canvas.width / 2, ( HALF_MAP - offsetY) * cameraZoom + canvas.height / 2 - inner);
+    ctx.moveTo(left + i * segmentLength * cameraZoom, bottom - inner);
+    ctx.lineTo(left + (i+1) * segmentLength * cameraZoom, bottom - inner);
     ctx.stroke();
 
-    // Gauche
+    // Left
     ctx.beginPath();
-    ctx.moveTo(( -HALF_MAP - offsetX) * cameraZoom + canvas.width / 2 + inner, ( -HALF_MAP + i * segmentLength - offsetY) * cameraZoom + canvas.height / 2);
-    ctx.lineTo(( -HALF_MAP - offsetX) * cameraZoom + canvas.width / 2 + inner, ( -HALF_MAP + (i+1) * segmentLength - offsetY) * cameraZoom + canvas.height / 2);
+    ctx.moveTo(left + inner, top + i * segmentLength * cameraZoom);
+    ctx.lineTo(left + inner, top + (i+1) * segmentLength * cameraZoom);
     ctx.stroke();
 
-    // Droite
+    // Right
     ctx.beginPath();
-    ctx.moveTo(( HALF_MAP - offsetX) * cameraZoom + canvas.width / 2 - inner, ( -HALF_MAP + i * segmentLength - offsetY) * cameraZoom + canvas.height / 2);
-    ctx.lineTo(( HALF_MAP - offsetX) * cameraZoom + canvas.width / 2 - inner, ( -HALF_MAP + (i+1) * segmentLength - offsetY) * cameraZoom + canvas.height / 2);
+    ctx.moveTo(right - inner, top + i * segmentLength * cameraZoom);
+    ctx.lineTo(right - inner, top + (i+1) * segmentLength * cameraZoom);
     ctx.stroke();
   }
 
   ctx.restore();
 }
 
-// === GAME LOOP ===
-let playerName = "";
-function resetGame(){
-  playerCells = [];
-  bots = [];
-  foods = [];
-  gameStartTime = performance.now();
-  gameOver = false;
-
-  const startRadius = 20;
-  playerCells.push({
-    x: 0, y:0,
-    r: startRadius,
-    targetR: startRadius,
-    color: colorPicker.value || "#00ff00",
-    speed: PLAYER_BASE_SPEED,
-    score: 0,
-    lastSplit: 0,
-    shield: false,
-  });
-  playerName = pseudoInput.value.trim() || "Joueur";
-
-  spawnFood();
-  spawnBots();
-
-  cameraZoom = 1;
-  lastTime = 0;
-}
-
-function updateCameraZoom(){
-  const r = playerCells[0].r;
-  // Zoom out quand on grossit (min 0.2 max 1)
-  cameraZoom = clamp(50 / (r || 1), 0.2, 1);
-}
-
+// === Drawing main loop ===
 function draw(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   if(playerCells.length === 0) return;
 
   updateCameraZoom();
@@ -688,39 +647,86 @@ function draw(){
   drawPlayerCells(offsetX, offsetY);
   drawLeaderboard();
 
-  // Score & timer
-  scoreDiv.textContent = `Score : ${Math.floor(playerCells[0].r)}`;
+  // Affiche score et temps
+  scoreDiv.textContent = "Score : " + Math.floor(playerCells[0].score || playerCells[0].r);
   const elapsed = performance.now() - gameStartTime;
   const remaining = Math.max(0, GAME_DURATION_MS - elapsed);
-  const min = Math.floor(remaining / 60000);
-  const sec = Math.floor((remaining % 60000) / 1000);
-  timerDiv.textContent = `Temps restant : ${String(min).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  timerDiv.textContent = `Temps restant : ${minutes}:${seconds.toString().padStart(2, "0")}`;
 
-  if(remaining <= 0){
-    gameOver = true;
-    menu.style.display = "block";
-    gameContainer.style.display = "none";
-    // Mise à jour stats
-    if(playerCells[0].r >= 100){
-      stats.wins++;
-      alert("Bravo, tu as gagné !");
-    } else {
-      stats.losses++;
-      alert("Fin de partie, essaie encore !");
-    }
-    localStorage.setItem("wins", stats.wins);
-    localStorage.setItem("losses", stats.losses);
-    menuWinsSpan.textContent = stats.wins;
-    menuLossesSpan.textContent = stats.losses;
-    menuLevelSpan.textContent = Math.floor(playerCells[0].r);
-    menuGradeSpan.textContent = getGrade(Math.floor(playerCells[0].r));
+  if(remaining <= 0) {
+    endGame();
   }
 }
 
+function updateCameraZoom(){
+  const baseZoom = 1;
+  const maxZoomOut = 0.3;
+  const targetRadius = playerCells[0].r;
+  // Zoom out when player grows to keep them visible
+  cameraZoom = clamp(baseZoom - (targetRadius / MAX_PLAYER_RADIUS) * (baseZoom - maxZoomOut), maxZoomOut, baseZoom);
+}
+
+function endGame(){
+  gameOver = true;
+  cancelAnimationFrame(animationFrameId);
+
+  const finalScore = Math.floor(playerCells[0].score || playerCells[0].r);
+  const level = Math.floor(finalScore);
+  menuLevelSpan.textContent = "Niveau : " + level;
+  menuGradeSpan.textContent = "Grade : " + getGrade(level);
+  if(level >= 100){
+    stats.wins++;
+    localStorage.setItem("wins", stats.wins);
+    menuWinsSpan.textContent = stats.wins;
+  } else {
+    stats.losses++;
+    localStorage.setItem("losses", stats.losses);
+    menuLossesSpan.textContent = stats.losses;
+  }
+
+  gameContainer.style.display = "none";
+  menu.style.display = "block";
+}
+
+function resetGame() {
+  playerCells.length = 0;
+  bots.length = 0;
+  foods.length = 0;
+  bonuses.length = [];
+  gameOver = false;
+  cameraZoom = 1;
+
+  playerCells.push({
+    x: 0,
+    y: 0,
+    r: 20,
+    targetR: 20,
+    color: colorPicker.value || "#00ff00",
+    pseudo: pseudoInput.value || "Joueur",
+    score: 0,
+    speed: PLAYER_BASE_SPEED,
+    shield: false,
+    lastSplit: 0
+  });
+
+  spawnFood();
+  spawnBots();
+  gameStartTime = performance.now();
+
+  menu.style.display = "none";
+  gameContainer.style.display = "block";
+
+  gameLoop();
+}
+
+// === Game loop ===
 function gameLoop(timestamp){
   if(!lastTime) lastTime = timestamp;
   const delta = timestamp - lastTime;
   lastTime = timestamp;
+
   if(gameOver){
     cancelAnimationFrame(animationFrameId);
     return;
@@ -731,29 +737,30 @@ function gameLoop(timestamp){
   botsAI();
   eatCheck();
 
+  if(playerCells.length === 0){
+    endGame();
+    return;
+  }
+
   const offsetX = playerCells[0].x;
   const offsetY = playerCells[0].y;
 
-  drawBarrier(offsetX, offsetY, delta);
   draw();
+  drawBarrier(offsetX, offsetY, delta);
 
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// === START BUTTON ===
 startBtn.addEventListener("click", () => {
   if(!pseudoInput.value.trim()){
     alert("Choisis un pseudo !");
     return;
   }
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
   resetGame();
-  animationFrameId = requestAnimationFrame(gameLoop);
 });
 
-// === INIT STATS ===
+// Initial stats
 menuWinsSpan.textContent = stats.wins;
 menuLossesSpan.textContent = stats.losses;
-menuLevelSpan.textContent = "-";
-menuGradeSpan.textContent = "-";
+menuLevelSpan.textContent = "Niveau : 0";
+menuGradeSpan.textContent = "Grade : Bronze 1";
