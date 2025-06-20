@@ -5,6 +5,7 @@
   <title>Mytox.io</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" href="https://i.imgur.com/GDAdER0.png" type="image/png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
   <div id="menu" style="text-align:center; padding-top: 20px;">
@@ -29,12 +30,12 @@
     </div>
 
     <label for="pseudo">Pseudo :</label><br />
-    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" /><br />
+    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" autocomplete="off"/><br />
     <label for="colorPicker">Choisis ta couleur :</label><br />
     <input type="color" id="colorPicker" value="#00ff00" /><br />
     <div>
-      <strong>Niveau :</strong> <span id="menuLevel">1</span><br />
-      <strong>Grade :</strong> <span id="menuGrade">Bronze 1</span><br />
+      <strong>Niveau :</strong> <span id="menuLevel">-</span><br />
+      <strong>Grade :</strong> <span id="menuGrade">-</span><br />
       <strong>Victoires :</strong> <span id="menuWins">0</span><br />
       <strong>Défaites :</strong> <span id="menuLosses">0</span><br />
     </div>
@@ -44,7 +45,7 @@
   <div id="gameContainer" style="display:none;">
     <div id="hud">
       <div id="score">Score : 0</div>
-      <div id="timer">Temps restant : 05:00</div>
+      <div id="timer">Temps restant : 03:00</div>
     </div>
     <canvas id="game"></canvas>
   </div>
