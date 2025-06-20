@@ -15,7 +15,7 @@ const menuLossesSpan = document.getElementById("menuLosses");
 
 // === CONSTANTES & CONFIGURATION ===
 const MAX_BOTS = 40;
-const FOOD_COUNT = 1800; // un peu moins pour plus de fluidité
+const FOOD_COUNT = 1800;
 const GAME_DURATION_MS = 3 * 60 * 1000; // 3 minutes
 const MAP_SIZE = 4500;
 const HALF_MAP = MAP_SIZE / 2;
@@ -249,12 +249,10 @@ function botsAI(){
 
       let possibleTargets = [];
 
-      // Limite à max 60 nourritures aléatoires pour perf
       for(let i=0, count=0; i < foods.length && count < 60; i++, count++){
         possibleTargets.push(foods[i]);
       }
 
-      // Limite à max 12 bots plus petits proches
       let nearbyBots = bots.filter(otherBot => 
         otherBot !== bot && !otherBot.respawnTimeout && otherBot.r < bot.r * 0.9);
       if(nearbyBots.length > 12){
@@ -266,7 +264,6 @@ function botsAI(){
         possibleTargets.push(player);
       }
 
-      // Points aléatoires pour varier
       for(let i=0; i<5; i++){
         possibleTargets.push({
           x: (Math.random() - 0.5) * MAP_SIZE,
@@ -284,7 +281,6 @@ function botsAI(){
     let targetX = bot.target.x;
     let targetY = bot.target.y;
 
-    // Fuir joueur plus gros
     if(bot.target === player && player.r > bot.r * 1.1){
       targetX = bot.x - (player.x - bot.x);
       targetY = bot.y - (player.y - bot.y);
@@ -312,7 +308,6 @@ function removeBot(index){
     respawnBot(bot);
   }, 2000);
 
-  // Hors carte pendant respawn
   bot.x = 99999;
   bot.y = 99999;
   bot.r = 0;
@@ -327,12 +322,11 @@ function eatCheck(){
   if(virus && dist(player, virus) < player.r + virus.r){
     if(!player.shield){
       player.r = Math.max(10, player.r / 2);
-      player.targetR = player.r; // éviter animation incohérente
+      player.targetR = player.r;
       spawnVirus();
     }
   }
 
-  // Joueur mange nourriture
   for(let i = foods.length - 1; i >= 0; i--){
     let food = foods[i];
     if(dist(player, food) < player.r + food.r){
@@ -342,7 +336,6 @@ function eatCheck(){
     }
   }
 
-  // Joueur mange bots plus petits
   for(let i = bots.length - 1; i >= 0; i--){
     let bot = bots[i];
     if(bot.respawnTimeout) continue;
@@ -353,7 +346,6 @@ function eatCheck(){
     }
   }
 
-  // Bots mangent nourriture
   bots.forEach(bot => {
     if(bot.respawnTimeout) return;
     for(let i = foods.length - 1; i >= 0; i--){
@@ -367,11 +359,9 @@ function eatCheck(){
     }
   });
 
-  // Bots mangent joueurs plus petits
   bots.forEach(bot => {
     if(bot.respawnTimeout) return;
     if(dist(bot, player) < bot.r && bot.r > player.r * 1.1 && !gameOver){
-      // Player lost
       gameOver = true;
       alert("Tu as été mangé ! Réessaie.");
       stats.losses++;
@@ -418,7 +408,6 @@ function drawVirus(v) {
   ctx.arc(v.x, v.y, v.r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Virus spikes
   for(let i=0; i<12; i++){
     const angle = (i * Math.PI * 2) / 12;
     const spikeStart = {
@@ -446,40 +435,34 @@ function lerp(start, end, t){
 
 // === CAMÉRA & DESSIN ===
 function draw(){
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Ajout fond noir pour bien voir le jeu
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Centre caméra sur joueur + zoom dynamique (taille influence zoom)
   cameraZoom = 1 / (player.r / 50);
   cameraZoom = clamp(cameraZoom, 0.3, 1.2);
 
   ctx.save();
-  // translation monde
   ctx.translate(canvas.width/2, canvas.height/2);
   ctx.scale(cameraZoom, cameraZoom);
   ctx.translate(-player.x, -player.y);
 
-  // DESSIN FOODS
   foods.forEach(food => drawCell(food, {emoji: food.emoji, color: "#66bb66"}));
 
-  // DESSIN BONUS
   drawBonuses();
 
-  // DESSIN VIRUS
   if(virus) drawVirus(virus);
 
-  // DESSIN BOTS
   bots.forEach(bot => {
     if(bot.respawnTimeout) return;
     drawCell(bot, {color: bot.color});
   });
 
-  // DESSIN JOUEUR
   player.r = lerp(player.r, player.targetR, 0.15);
   drawCell(player, {color: player.color});
 
   ctx.restore();
 
-  // Mise à jour HUD
   scoreDiv.textContent = "Score : " + Math.floor(player.score);
   const elapsed = Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime));
   const minutes = Math.floor(elapsed / 60000);
@@ -514,6 +497,11 @@ function resetGame(){
 
 // === BOUCLE PRINCIPALE ===
 function gameLoop(time=0){
+  if(!player){
+    animationFrameId = requestAnimationFrame(gameLoop);
+    return;
+  }
+
   if(!gameStartTime) gameStartTime = time;
 
   const deltaTime = time - lastTime;
@@ -534,32 +522,4 @@ function gameLoop(time=0){
 startBtn.addEventListener("click", () => {
   const pseudo = pseudoInput.value.trim();
   if(!pseudo){
-    alert("Entre un pseudo avant de commencer !");
-    return;
-  }
-  player = {
-    x: 0,
-    y: 0,
-    r: 20,
-    targetR: 20,
-    color: colorPicker.value,
-    speed: PLAYER_BASE_SPEED,
-    score: 0,
-    shield: false,
-  };
-  menu.style.display = "none";
-  spawnFood();
-  spawnBots();
-  spawnVirus();
-  bonuses = [];
-  gameStartTime = performance.now();
-  gameOver = false;
-  animationFrameId = requestAnimationFrame(gameLoop);
-});
-
-// === Affichage stats dans menu ===
-menuWinsSpan.textContent = stats.wins;
-menuLossesSpan.textContent = stats.losses;
-
-// === Lancement auto du menu ===
-menu.style.display = "block";
+    alert("
