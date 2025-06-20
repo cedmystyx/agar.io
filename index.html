@@ -50,6 +50,26 @@
       <div id="score">Score : 0</div>
       <div id="timer">Temps restant : 03:00</div>
     </div>
+
+    <!-- Leaderboard en haut à gauche -->
+    <div id="leaderboard" style="
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      z-index: 10000;
+      max-width: 200px;
+      user-select: none;
+      pointer-events: none;">
+      <strong>Leaderboard</strong>
+      <ol id="leaderboard-list" style="padding-left: 18px; margin-top: 6px; margin-bottom: 0;"></ol>
+    </div>
+
     <canvas id="game" tabindex="0" aria-label="Zone de jeu Mytox.io"></canvas>
   </section>
 
