@@ -20,7 +20,8 @@ const GAME_DURATION_MS = 3 * 60 * 1000; // 3 min
 const MAP_SIZE = 4500;
 const HALF_MAP = MAP_SIZE / 2;
 const MAX_LEVEL = 2000;
-const MAX_PLAYER_RADIUS = 150;
+// ----- Augmentation du max radius joueur à 250 (au lieu de 150) -----
+const MAX_PLAYER_RADIUS = 250; 
 const PLAYER_BASE_SPEED = 3;
 const PLAYER_SPLIT_SPEED = 7;
 const PLAYER_FUSION_DELAY = 4000; // ms
@@ -69,6 +70,15 @@ function getGrade(level) {
   const index = Math.floor(level / (MAX_LEVEL / (GRADES.length - 1)));
   return GRADES[index];
 }
+
+// === LISTE DE PSEUDOS BOT RÉALISTES (à enrichir si tu veux) ===
+const BOT_PSEUDOS = [
+  "NoobMaster69","SpeedyFox","DarkShadow","PixelNinja","FireBlade",
+  "GhostWolf","IceDragon","CrazyCat","MegaGamer","SilentHunter",
+  "TurboRacer","RedFalcon","BlueTiger","ShadowSniper","RapidWolf",
+  "NightStalker","LoneWolf","KingKong","QuickSilver","IronFist",
+  "DragonSlayer","Venomous","CyberNinja","RogueAgent","FlashFire"
+];
 
 // === INPUTS ===
 window.addEventListener("mousemove", e => {
@@ -127,8 +137,15 @@ function spawnRandomFood(count=5){
 }
 
 // === SPAWN BOTS (amélioré) ===
+// Ajout pseudo random unique attribué à chaque bot
 function createBot(minRadius = 30) {
-  const r = minRadius + Math.random() * 40; // plus gros bots dès le départ
+  const r = minRadius + Math.random() * 40;
+  // Attribution pseudo random unique
+  let pseudo;
+  do {
+    pseudo = BOT_PSEUDOS[Math.floor(Math.random() * BOT_PSEUDOS.length)];
+  } while (bots.some(b => b.pseudo === pseudo));
+
   return {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
@@ -139,6 +156,7 @@ function createBot(minRadius = 30) {
     score: Math.floor(r),
     respawnTimeout: null,
     changeTargetTime: 0,
+    pseudo // pseudo bot
   };
 }
 function spawnBots(initial = true) {
@@ -150,8 +168,14 @@ function spawnBots(initial = true) {
 }
 function respawnBot(bot){
   const playerMainR = playerCells[0]?.r || 20;
-  const variation = Math.random() * 40 - 20; // entre -20 et +20
+  const variation = Math.random() * 40 - 20;
   const newRadius = clamp(playerMainR + variation, 10, MAX_PLAYER_RADIUS - 10);
+  // Regénérer pseudo unique aussi à la respawn
+  let pseudo;
+  do {
+    pseudo = BOT_PSEUDOS[Math.floor(Math.random() * BOT_PSEUDOS.length)];
+  } while (bots.some(b => b !== bot && b.pseudo === pseudo));
+  
   Object.assign(bot, {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
@@ -162,6 +186,7 @@ function respawnBot(bot){
     score: Math.floor(newRadius),
     respawnTimeout: null,
     changeTargetTime: 0,
+    pseudo
   });
 }
 
@@ -183,7 +208,6 @@ function getMouseWorldPos(){
 
 function movePlayerCells(){
   const now = performance.now();
-  // boucle inverse pour éviter bugs splice lors fusion
   for(let idx = playerCells.length - 1; idx >= 0; idx--){
     const cell = playerCells[idx];
     let target;
@@ -196,7 +220,7 @@ function movePlayerCells(){
     const dy = target.y - cell.y;
     const distance = Math.hypot(dx, dy);
     let speed = cell.speed || PLAYER_BASE_SPEED;
-    if(idx !== 0) speed *= 1.2; // split cells plus rapides
+    if(idx !== 0) speed *= 1.2;
     if(distance > 1){
       const moveDist = Math.min(distance, speed);
       cell.x += (dx / distance) * moveDist;
@@ -218,9 +242,9 @@ function movePlayerCells(){
 
 // === SPLIT JOUEUR ===
 function splitPlayer(){
-  if(playerCells.length >= 8) return; // max 8 splits
+  if(playerCells.length >= 8) return;
   const mainCell = playerCells[0];
-  if(mainCell.r < 40) return; // trop petit pour split
+  if(mainCell.r < 40) return;
   const splitRadius = mainCell.r / 2;
   mainCell.targetR = mainCell.r - splitRadius;
   mainCell.lastSplit = performance.now();
@@ -280,7 +304,6 @@ function botsAI(){
           possibleTargets.push(cell);
         }
         if(cell.r > bot.r * 1.1 && !gameOver){
-          // fuir joueur plus gros
           const fleeX = bot.x - (cell.x - bot.x);
           const fleeY = bot.y - (cell.y - bot.y);
           possibleTargets.push({x: fleeX, y: fleeY, isPoint:true});
@@ -332,7 +355,6 @@ function removeBot(index){
 
 // === INTERACTIONS ===
 function eatCheck(){
-  // Joueur mange nourriture
   for(let i = foods.length - 1; i >= 0; i--){
     const food = foods[i];
     for(const cell of playerCells){
@@ -345,7 +367,6 @@ function eatCheck(){
     }
   }
 
-  // Joueur mange bots plus petits
   for(let i = bots.length - 1; i >= 0; i--){
     const bot = bots[i];
     if(bot.respawnTimeout) continue;
@@ -359,7 +380,6 @@ function eatCheck(){
     }
   }
 
-  // Bots mangent joueur plus petits
   for(const bot of bots){
     if(bot.respawnTimeout) continue;
     for(const cell of playerCells){
@@ -424,7 +444,19 @@ function draw(){
   // Dessin bots
   for(const bot of bots){
     if(bot.respawnTimeout) continue;
-    drawCircle(bot.x, bot.y, bot.r, bot.color);
+    drawCircle(bot.x, bot.y, bot.r, bot.color, null);
+    // Afficher pseudo bot au centre (plus petit, blanc avec ombre noire)
+    ctx.save();
+    ctx.translate(canvas.width/2 - camX + bot.x, canvas.height/2 - camY + bot.y);
+    ctx.scale(cameraZoom, cameraZoom);
+    ctx.font = `${bot.r / 3}px Arial Black`;
+    ctx.fillStyle = "white";
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 3;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(bot.pseudo, bot.x, bot.y);
+    ctx.restore();
   }
 
   // Dessin joueur
@@ -463,10 +495,10 @@ function updateLeaderboard() {
   const playerScore = playerCells.reduce((acc, c) => acc + c.score, 0);
   entries.push({ name: "Vous", score: playerScore });
 
-  // Score des bots (ignorer ceux en respawn)
+  // Score des bots (avec pseudo)
   for (const bot of bots) {
     if (bot.respawnTimeout) continue;
-    entries.push({ name: "Bot", score: bot.score });
+    entries.push({ name: bot.pseudo, score: bot.score });
   }
 
   // Tri décroissant
@@ -483,7 +515,7 @@ function resetGame() {
   playerCells.length = 0;
   bots.length = 0;
   foods.length = 0;
-  bonuses.length = [];
+  bonuses.length = 0;
   gameOver = false;
   cameraZoom = 1;
   gameStartTime = performance.now();
@@ -511,13 +543,16 @@ function resetGame() {
   });
 
   spawnFood();
-  spawnBots();
+  spawnBots(true);
 
   // Affichage score initial
   scoreDiv.textContent = "Score : 0";
   timerDiv.textContent = "Temps restant : 03:00";
+  menuLevelSpan.textContent = "0";
+  menuGradeSpan.textContent = "-";
 }
 
+// === AFFICHAGE MENU ===
 function showMenu() {
   menu.style.display = "block";
   gameContainer.style.display = "none";
