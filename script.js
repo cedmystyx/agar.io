@@ -21,7 +21,7 @@ const GAME_DURATION_MS = 3 * 60 * 1000; // 3 min
 const MAP_SIZE = 9000;
 const HALF_MAP = MAP_SIZE / 2;
 const MAX_LEVEL = 2000;
-const MAX_PLAYER_RADIUS = 200;  // augmenté
+const MAX_PLAYER_RADIUS = 200;
 const PLAYER_BASE_SPEED = 3;
 const PLAYER_SPLIT_SPEED = 7;
 const PLAYER_FUSION_DELAY = 4000; // ms
@@ -66,9 +66,8 @@ const GRADES = [
 
 function getGrade(level) {
   if (level >= MAX_LEVEL) return GRADES[GRADES.length - 1];
-  const maxIndex = GRADES.length - 2; // dernier avant "Ranked"
-  const index = Math.floor(level / (MAX_LEVEL / maxIndex));
-  return GRADES[Math.min(index, maxIndex)];
+  const index = Math.floor(level / (MAX_LEVEL / (GRADES.length - 1)));
+  return GRADES[index];
 }
 
 // === Input ===
@@ -471,63 +470,103 @@ function drawPlayerCells(offsetX, offsetY){
     // Pseudo joueur (seulement sur la cellule principale)
     if(cell === playerCells[0]){
       ctx.fillStyle = "#000";
-      ctx.font = `${Math.min(cell.r * 1.2, 20) * cameraZoom}px Arial Black`;
+      ctx.font = `${Math.min(cell.r * 1.5, 24) * cameraZoom}px Arial Black`;
       ctx.fillText(cell.pseudo || "Joueur", screenX, screenY);
     }
   });
   ctx.restore();
 }
 
-// === MAIN LOOP ===
-function draw(time = 0){
-  if(gameOver) return;
-
-  const delta = time - lastTime;
-  lastTime = time;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if(playerCells.length === 0){
-    requestAnimationFrame(draw);
-    return;
-  }
-
-  // Zoom dynamique selon la taille du joueur principal
+function drawScoreAndTimer(){
+  if(playerCells.length === 0) return;
   const mainCell = playerCells[0];
-  cameraZoom = lerp(cameraZoom, 50 / mainCell.r, 0.05);
-  cameraZoom = clamp(cameraZoom, 0.2, 1.2);
+  scoreDiv.textContent = "Score : " + Math.floor(mainCell.score || mainCell.r);
+  const elapsed = performance.now() - gameStartTime;
+  const remaining = Math.max(0, GAME_DURATION_MS - elapsed);
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  timerDiv.textContent = `Temps restant : ${minutes}:${seconds.toString().padStart(2,"0")}`;
+}
 
-  drawMap(mainCell.x, mainCell.y);
+function draw(){
+  if(gameOver) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if(playerCells.length === 0) return;
 
-  drawFoods(mainCell.x, mainCell.y);
-  drawBots(mainCell.x, mainCell.y);
-  drawPlayerCells(mainCell.x, mainCell.y);
+  const mainCell = playerCells[0];
+  const offsetX = mainCell.x;
+  const offsetY = mainCell.y;
+
+  cameraZoom = clamp(100 / mainCell.r, 0.2, 1);
+
+  drawMap(offsetX, offsetY);
+  drawFoods(offsetX, offsetY);
+  drawBots(offsetX, offsetY);
+  drawPlayerCells(offsetX, offsetY);
+  drawScoreAndTimer();
+}
+
+// === GAME LOOP ===
+function gameLoop(timestamp){
+  if(!gameStartTime) gameStartTime = performance.now();
+  if(!lastTime) lastTime = timestamp;
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  if(gameOver) return;
 
   movePlayerCells();
   moveSplitCells();
-
   botsAI();
   eatCheck();
 
-  // Score & grade affichage live
-  const currentScore = Math.floor(mainCell.score || mainCell.r);
-  scoreDiv.textContent = `Score : ${currentScore} | Catégorie : ${getGrade(currentScore)}`;
+  draw();
 
-  // Timer affichage
-  const elapsed = time - gameStartTime;
-  const remainingMs = GAME_DURATION_MS - elapsed;
-  if(remainingMs <= 0){
+  if(performance.now() - gameStartTime > GAME_DURATION_MS){
     endGame();
     return;
   }
-  const minutes = Math.floor(remainingMs / 60000);
-  const seconds = Math.floor((remainingMs % 60000) / 1000);
-  timerDiv.textContent = `Temps restant : ${minutes}:${seconds.toString().padStart(2,"0")}`;
 
-  animationFrameId = requestAnimationFrame(draw);
+  animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// === Gestion fin de partie ===
+// === RESET GAME ===
+function resetGame(){
+  gameStartTime = null;
+  gameOver = false;
+  lastTime = 0;
+  playerCells.length = 0;
+  bots.length = 0;
+  foods.length = 0;
+
+  const pseudo = pseudoInput.value.trim() || "Joueur";
+  const color = colorPicker.value || "#00ff00";
+  playerCells.push({
+    x: 0,
+    y: 0,
+    r: 20,
+    targetR: 20,
+    color,
+    pseudo,
+    score: 0,
+    speed: PLAYER_BASE_SPEED,
+    shield: false,
+    lastSplit: 0,
+  });
+
+  spawnFood();
+  spawnBots();
+
+  menu.style.display = "none";
+  gameContainer.style.display = "block";
+
+  scoreDiv.textContent = "Score : 0";
+  timerDiv.textContent = "Temps restant : 3:00";
+
+  animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+// === END GAME ===
 function endGame(){
   gameOver = true;
 
@@ -548,52 +587,67 @@ function endGame(){
     localStorage.setItem("losses", stats.losses);
   }
 
+  // === Ajout leaderboard ===
+  updateLeaderboard(playerCells[0].pseudo || "Joueur", finalScore);
+
   menu.style.display = "block";
   gameContainer.style.display = "none";
 }
 
-// === Reset & démarrage ===
-function resetGame(){
-  playerCells.length = 0;
-  bots.length = 0;
-  foods.length = 0;
-  bonuses.length = [];
-  gameOver = false;
-  gameStartTime = performance.now();
-
-  playerCells.push({
-    x: 0,
-    y: 0,
-    r: 20,
-    targetR: 20,
-    color: colorPicker.value || "#00ff00",
-    pseudo: pseudoInput.value || "Joueur",
-    score: 0,
-    speed: PLAYER_BASE_SPEED,
-    shield: false,
-    lastSplit: 0,
-  });
-
-  spawnFood();
-  spawnBots();
-
-  menuLevelSpan.textContent = "";
-  menuGradeSpan.textContent = "";
-  timerDiv.textContent = "";
-  scoreDiv.textContent = "Score : 0 | Catégorie : Bronze 1";
+// === Leaderboard stockage local ===
+function getLeaderboard() {
+  const lb = localStorage.getItem("leaderboard");
+  return lb ? JSON.parse(lb) : [];
 }
 
-startBtn.addEventListener("click", () => {
-  if(!pseudoInput.value.trim()){
-    alert("Choisis un pseudo !");
+function saveLeaderboard(lb) {
+  localStorage.setItem("leaderboard", JSON.stringify(lb));
+}
+
+function updateLeaderboard(pseudo, score) {
+  let lb = getLeaderboard();
+  const existing = lb.find(e => e.pseudo === pseudo);
+  if (existing) {
+    if (score > existing.score) existing.score = score;
+  } else {
+    lb.push({ pseudo, score });
+  }
+  lb.sort((a, b) => b.score - a.score);
+  if (lb.length > 10) lb = lb.slice(0, 10);
+  saveLeaderboard(lb);
+  displayLeaderboard();
+}
+
+function displayLeaderboard() {
+  const lb = getLeaderboard();
+  leaderboardDiv.innerHTML = "<h3>Classement</h3>";
+  if(lb.length === 0){
+    leaderboardDiv.innerHTML += "<p>Aucun score enregistré</p>";
     return;
   }
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
+  const ul = document.createElement("ul");
+  lb.forEach((entry, i) => {
+    const li = document.createElement("li");
+    li.textContent = `${i+1}. ${entry.pseudo} — ${entry.score}`;
+    ul.appendChild(li);
+  });
+  leaderboardDiv.appendChild(ul);
+}
+
+// === Afficher leaderboard au démarrage ===
+displayLeaderboard();
+
+// === START BUTTON ===
+startBtn.addEventListener("click", () => {
+  if(pseudoInput.value.trim().length < 3){
+    alert("Choisis un pseudo d'au moins 3 caractères !");
+    return;
+  }
   resetGame();
-  draw();
 });
 
-// === Initialisation affichage stats ===
+// === Initialisation stats menu ===
 menuWinsSpan.textContent = stats.wins;
 menuLossesSpan.textContent = stats.losses;
+menuLevelSpan.textContent = "Niveau : 0";
+menuGradeSpan.textContent = "Grade : " + getGrade(0);
