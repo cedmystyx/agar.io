@@ -1,3 +1,4 @@
+/* Reset & base */
 html, body {
   margin: 0;
   overflow: hidden;
@@ -5,6 +6,10 @@ html, body {
   font-family: Arial, sans-serif;
   height: 100%;
   color: white;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none; /* évite scroll/touch non voulu */
 }
 
 #menu {
@@ -16,9 +21,11 @@ html, body {
   padding: 30px 50px;
   border-radius: 10px;
   text-align: center;
-  user-select: none;
   width: 320px;
-  box-shadow: 0 0 15px #00ff00aa;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
 }
 
 #menu input[type=text], #menu input[type=color] {
@@ -29,9 +36,7 @@ html, body {
   border-radius: 5px;
   border: none;
   outline: none;
-  background: #222;
-  color: white;
-  text-align: center;
+  box-sizing: border-box;
 }
 
 #menu button {
@@ -45,23 +50,26 @@ html, body {
   color: white;
   transition: background 0.3s ease;
   user-select: none;
-  box-shadow: 0 0 10px #00ff00cc;
 }
-#menu button:hover {
+#menu button:hover, #menu button:focus {
   background: #399d3b;
+  outline: none;
 }
 
 #gameContainer {
   width: 100vw;
   height: 100vh;
   position: relative;
+  touch-action: none;
 }
 
 canvas {
   display: block;
-  background: #010026;
+  background: #222;
   width: 100vw;
   height: 100vh;
+  touch-action: none;
+  user-select: none;
 }
 
 #hud {
@@ -70,18 +78,37 @@ canvas {
   right: 10px;
   text-align: right;
   font-size: 16px;
-  user-select: none;
   font-weight: bold;
   color: #00ff00;
   text-shadow: 0 0 5px #00ff00aa;
-  z-index: 10;
+  user-select: none;
+  pointer-events: none;
 }
 
 #hud > div {
   margin-bottom: 5px;
 }
 
-/* Virus star pulse */
+/* Modale message */
+#modalMessage {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.9);
+  color: #0f0;
+  padding: 25px 45px;
+  border-radius: 12px;
+  font-size: 20px;
+  text-align: center;
+  user-select: none;
+  z-index: 9999;
+  box-shadow: 0 0 15px #0f0aa;
+  max-width: 90vw;
+  cursor: pointer;
+}
+
+/* Animations bonus (optionnel) */
 @keyframes pulseGlow {
   0%, 100% { filter: drop-shadow(0 0 5px red); }
   50% { filter: drop-shadow(0 0 15px yellow); }
