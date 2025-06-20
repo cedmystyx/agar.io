@@ -12,6 +12,7 @@ const menuLevelSpan = document.getElementById("menuLevel");
 const menuGradeSpan = document.getElementById("menuGrade");
 const menuWinsSpan = document.getElementById("menuWins");
 const menuLossesSpan = document.getElementById("menuLosses");
+const leaderboardList = document.getElementById("leaderboardList");
 
 // === CONSTANTES ===
 const MAX_BOTS = 20;
@@ -19,13 +20,21 @@ const FOOD_COUNT = 2200;
 const GAME_DURATION_MS = 3 * 60 * 1000; // 3 min
 const MAP_SIZE = 4500;
 const HALF_MAP = MAP_SIZE / 2;
-const MAX_LEVEL = 2000;
-// ----- Augmentation du max radius joueur à 250 (au lieu de 150) -----
-const MAX_PLAYER_RADIUS = 250; 
+const MAX_LEVEL = 4000; // augmenté max level (pour grossir plus)
+const MAX_PLAYER_RADIUS = 250; // augmenté rayon max
 const PLAYER_BASE_SPEED = 3;
 const PLAYER_SPLIT_SPEED = 7;
 const PLAYER_FUSION_DELAY = 4000; // ms
 const FUSION_SPEED = 0.05;
+
+// Liste de vrais pseudos random pour bots
+const BOT_PSEUDOS = [
+  "ShadowFox","NinjaCat","PixelPro","GhostWolf","FireStorm",
+  "IceDragon","CyberPunk","DarkKnight","AlphaWolf","SilentArrow",
+  "RedHawk","BlueTiger","CrazyDuck","SpeedyRabbit","MetalSlug",
+  "IronGiant","SilverBlade","ThunderBolt","LoneWolf","FrostBite",
+  "RogueAgent","WildCard","NeonFlash","TurboJet","SkyWalker"
+];
 
 // === Variables de jeu ===
 let stats = {
@@ -70,15 +79,6 @@ function getGrade(level) {
   const index = Math.floor(level / (MAX_LEVEL / (GRADES.length - 1)));
   return GRADES[index];
 }
-
-// === LISTE DE PSEUDOS BOT RÉALISTES (à enrichir si tu veux) ===
-const BOT_PSEUDOS = [
-  "NoobMaster69","SpeedyFox","DarkShadow","PixelNinja","FireBlade",
-  "GhostWolf","IceDragon","CrazyCat","MegaGamer","SilentHunter",
-  "TurboRacer","RedFalcon","BlueTiger","ShadowSniper","RapidWolf",
-  "NightStalker","LoneWolf","KingKong","QuickSilver","IronFist",
-  "DragonSlayer","Venomous","CyberNinja","RogueAgent","FlashFire"
-];
 
 // === INPUTS ===
 window.addEventListener("mousemove", e => {
@@ -137,26 +137,19 @@ function spawnRandomFood(count=5){
 }
 
 // === SPAWN BOTS (amélioré) ===
-// Ajout pseudo random unique attribué à chaque bot
 function createBot(minRadius = 30) {
   const r = minRadius + Math.random() * 40;
-  // Attribution pseudo random unique
-  let pseudo;
-  do {
-    pseudo = BOT_PSEUDOS[Math.floor(Math.random() * BOT_PSEUDOS.length)];
-  } while (bots.some(b => b.pseudo === pseudo));
-
   return {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
     r,
     color: `hsl(${Math.random() * 360}, 60%, 50%)`,
-    speed: 0.8 + Math.random() * 1.2, 
+    speed: 0.8 + Math.random() * 1.2,
     target: null,
     score: Math.floor(r),
     respawnTimeout: null,
     changeTargetTime: 0,
-    pseudo // pseudo bot
+    pseudo: BOT_PSEUDOS[Math.floor(Math.random() * BOT_PSEUDOS.length)],
   };
 }
 function spawnBots(initial = true) {
@@ -170,12 +163,6 @@ function respawnBot(bot){
   const playerMainR = playerCells[0]?.r || 20;
   const variation = Math.random() * 40 - 20;
   const newRadius = clamp(playerMainR + variation, 10, MAX_PLAYER_RADIUS - 10);
-  // Regénérer pseudo unique aussi à la respawn
-  let pseudo;
-  do {
-    pseudo = BOT_PSEUDOS[Math.floor(Math.random() * BOT_PSEUDOS.length)];
-  } while (bots.some(b => b !== bot && b.pseudo === pseudo));
-  
   Object.assign(bot, {
     x: (Math.random() - 0.5) * MAP_SIZE,
     y: (Math.random() - 0.5) * MAP_SIZE,
@@ -186,7 +173,7 @@ function respawnBot(bot){
     score: Math.floor(newRadius),
     respawnTimeout: null,
     changeTargetTime: 0,
-    pseudo
+    pseudo: BOT_PSEUDOS[Math.floor(Math.random() * BOT_PSEUDOS.length)],
   });
 }
 
@@ -261,7 +248,8 @@ function splitPlayer(){
     shield: false,
     lastSplit: performance.now(),
     dx: Math.cos(angle) * PLAYER_SPLIT_SPEED,
-    dy: Math.sin(angle) * PLAYER_SPLIT_SPEED
+    dy: Math.sin(angle) * PLAYER_SPLIT_SPEED,
+    pseudo: mainCell.pseudo // conserve pseudo joueur aux splits
   };
   playerCells.push(newCell);
 }
@@ -288,17 +276,14 @@ function botsAI(){
 
       let possibleTargets = [];
 
-      // Nourriture
       possibleTargets.push(...foods);
 
-      // Cibles bots plus petits que lui
       for(const otherBot of bots){
         if(otherBot !== bot && !otherBot.respawnTimeout && otherBot.r < bot.r * 0.9){
           possibleTargets.push(otherBot);
         }
       }
 
-      // Joueur : bots ciblent cellules plus petites et fuient cellules plus grosses
       for(const cell of playerCells){
         if(cell.r < bot.r * 0.9 && !gameOver){
           possibleTargets.push(cell);
@@ -310,7 +295,6 @@ function botsAI(){
         }
       }
 
-      // Cibles aléatoires pour errer
       for(let i=0; i<5; i++){
         possibleTargets.push({
           x: (Math.random() - 0.5) * MAP_SIZE,
@@ -383,37 +367,42 @@ function eatCheck(){
   for(const bot of bots){
     if(bot.respawnTimeout) continue;
     for(const cell of playerCells){
-      if(dist(bot, cell) < bot.r && bot.r > cell.r * 1.1 && !gameOver){
+      if(dist(cell, bot) < bot.r && bot.r > cell.r * 1.1){
         gameOver = true;
-        alert("Tu as été mangé ! Réessaie.");
         stats.losses++;
         localStorage.setItem("losses", stats.losses);
-        showMenu();
+        endGame(false);
+        break;
       }
     }
   }
 }
 
-// === DESSIN ===
-function drawCircle(x, y, r, color, text=null) {
+// === CAMÉRA ===
+function updateCamera(){
+  if(playerCells.length === 0) return;
+  const mainCell = playerCells[0];
+  const targetZoom = clamp(200 / mainCell.r, 0.4, 1.2);
+  cameraZoom = lerp(cameraZoom, targetZoom, 0.05);
+}
+
+// === DESSINS ===
+function drawCircle(x, y, r, color){
   ctx.beginPath();
   ctx.fillStyle = color;
-  ctx.strokeStyle = "black";
-  ctx.lineWidth = 2;
-  ctx.shadowColor = "#0f0";
-  ctx.shadowBlur = 15;
+  ctx.shadowColor = "black";
+  ctx.shadowBlur = 10;
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
 
-  if(text){
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "white";
-    ctx.font = `${r}px Arial Black`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, x, y);
-  }
+// Dessine une nourriture avec emoji
+function drawFood(food){
+  ctx.font = `${food.r * 2}px Arial`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(food.emoji, food.x, food.y);
 }
 
 function draw(){
@@ -423,113 +412,92 @@ function draw(){
 
   const mainCell = playerCells[0];
 
-  // Calcul caméra pour centrer le joueur principal
-  const camX = mainCell.x;
-  const camY = mainCell.y;
-
+  // Décalage et zoom caméra
   ctx.save();
-  // Translation et zoom caméra
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(cameraZoom, cameraZoom);
-  ctx.translate(-camX, -camY);
+  ctx.translate(-mainCell.x, -mainCell.y);
 
-  // Dessin nourriture
+  // Dessin aliments
   for(const food of foods){
-    ctx.font = `${food.r * 1.8}px serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(food.emoji, food.x, food.y);
+    drawFood(food);
   }
 
   // Dessin bots
   for(const bot of bots){
     if(bot.respawnTimeout) continue;
-    drawCircle(bot.x, bot.y, bot.r, bot.color, null);
-    // Afficher pseudo bot au centre (plus petit, blanc avec ombre noire)
-    ctx.save();
-    ctx.translate(canvas.width/2 - camX + bot.x, canvas.height/2 - camY + bot.y);
-    ctx.scale(cameraZoom, cameraZoom);
-    ctx.font = `${bot.r / 3}px Arial Black`;
+    drawCircle(bot.x, bot.y, bot.r, bot.color);
+
+    // Pseudo centré dans cercle bot
     ctx.fillStyle = "white";
-    ctx.shadowColor = "black";
-    ctx.shadowBlur = 3;
+    ctx.font = `${bot.r / 3}px Arial Black`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 3;
     ctx.fillText(bot.pseudo, bot.x, bot.y);
-    ctx.restore();
+    ctx.shadowBlur = 0;
   }
 
-  // Dessin joueur
+  // Dessin joueur (cells)
   for(const cell of playerCells){
     drawCircle(cell.x, cell.y, cell.r, cell.color);
+
+    // Pseudo centré dans cercle joueur
+    ctx.fillStyle = "white";
+    ctx.font = `${cell.r / 3}px Arial Black`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 3;
+    const pseudo = cell.pseudo || pseudoInput.value.trim() || "Vous";
+    ctx.fillText(pseudo, cell.x, cell.y);
+    ctx.shadowBlur = 0;
   }
 
   ctx.restore();
 
-  // Update HUD score & timer
-  const totalScore = playerCells.reduce((acc, c) => acc + c.score, 0);
-  scoreDiv.textContent = `Score : ${Math.floor(totalScore)}`;
-  const elapsed = performance.now() - gameStartTime;
-  const remaining = Math.max(0, GAME_DURATION_MS - elapsed);
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+  // HUD
+  scoreDiv.textContent = `Score : ${Math.floor(mainCell.r)}`;
+  const timeLeftMs = Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime));
+  const m = Math.floor(timeLeftMs / 60000);
+  const s = Math.floor((timeLeftMs % 60000) / 1000);
+  timerDiv.textContent = `Temps restant : ${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
 
-  if(remaining <= 0){
-    gameOver = true;
-    alert("Temps écoulé ! Fin de partie.");
-    stats.wins++;
-    localStorage.setItem("wins", stats.wins);
-    showMenu();
+// === LEADERBOARD ===
+function updateLeaderboard(){
+  // Classement par score
+  const allPlayers = [
+    ...bots.filter(bot => !bot.respawnTimeout).map(b => ({pseudo: b.pseudo, score: Math.floor(b.r)})),
+    {pseudo: playerCells[0]?.pseudo || "Vous", score: Math.floor(playerCells[0]?.r || 0)}
+  ];
+
+  allPlayers.sort((a,b) => b.score - a.score);
+
+  leaderboardList.innerHTML = "";
+  for(let i=0; i < Math.min(10, allPlayers.length); i++){
+    const p = allPlayers[i];
+    const li = document.createElement("li");
+    li.textContent = `${p.pseudo} — ${p.score}`;
+    leaderboardList.appendChild(li);
   }
 }
 
-// === UPDATE LEADERBOARD ===
-function updateLeaderboard() {
-  const leaderboardList = document.getElementById("leaderboard-list");
-  if (!leaderboardList) return;
-
-  let entries = [];
-
-  // Score total joueur (somme des cellules)
-  const playerScore = playerCells.reduce((acc, c) => acc + c.score, 0);
-  entries.push({ name: "Vous", score: playerScore });
-
-  // Score des bots (avec pseudo)
-  for (const bot of bots) {
-    if (bot.respawnTimeout) continue;
-    entries.push({ name: bot.pseudo, score: bot.score });
-  }
-
-  // Tri décroissant
-  entries.sort((a, b) => b.score - a.score);
-
-  // Top 5
-  entries = entries.slice(0, 5);
-
-  leaderboardList.innerHTML = entries.map(e => `<li>${e.name}: ${Math.floor(e.score)}</li>`).join("");
-}
-
-// === DÉBUT & FIN DE PARTIE ===
-function resetGame() {
-  playerCells.length = 0;
-  bots.length = 0;
-  foods.length = 0;
-  bonuses.length = 0;
+// === RESET & START ===
+function resetGame(){
+  playerCells = [];
+  bots = [];
+  foods = [];
   gameOver = false;
-  cameraZoom = 1;
-  gameStartTime = performance.now();
 
   const pseudo = pseudoInput.value.trim();
-  if(!pseudo) {
+  if(!pseudo){
     alert("Choisis un pseudo !");
-    showMenu();
-    return;
+    return false;
   }
-
   const color = colorPicker.value || "#00ff00";
 
-  // Création cellule joueur principale
   playerCells.push({
     x: 0,
     y: 0,
@@ -540,56 +508,81 @@ function resetGame() {
     speed: PLAYER_BASE_SPEED,
     shield: false,
     lastSplit: 0,
+    pseudo,
   });
 
   spawnFood();
   spawnBots(true);
 
-  // Affichage score initial
-  scoreDiv.textContent = "Score : 0";
-  timerDiv.textContent = "Temps restant : 03:00";
-  menuLevelSpan.textContent = "0";
-  menuGradeSpan.textContent = "-";
+  gameStartTime = performance.now();
+
+  updateLevelStats();
+
+  return true;
 }
 
-// === AFFICHAGE MENU ===
-function showMenu() {
-  menu.style.display = "block";
-  gameContainer.style.display = "none";
+function updateLevelStats(){
+  const level = Math.floor(playerCells[0].score);
+  menuLevelSpan.textContent = level;
+  menuGradeSpan.textContent = getGrade(level);
   menuWinsSpan.textContent = stats.wins;
   menuLossesSpan.textContent = stats.losses;
-  menuLevelSpan.textContent = "0";
-  menuGradeSpan.textContent = "-";
 }
 
-// === BOUCLE PRINCIPALE ===
+// === END GAME ===
+function endGame(won){
+  gameOver = true;
+  if(won){
+    stats.wins++;
+    localStorage.setItem("wins", stats.wins);
+    alert("Bravo, tu as gagné !");
+  } else {
+    stats.losses++;
+    localStorage.setItem("losses", stats.losses);
+    alert("Perdu, essaie encore !");
+  }
+  menu.style.display = "block";
+  gameContainer.style.display = "none";
+  updateLevelStats();
+  cancelAnimationFrame(animationFrameId);
+}
+
+// === GAME LOOP ===
 function gameLoop(timestamp){
   if(!lastTime) lastTime = timestamp;
   const delta = timestamp - lastTime;
   lastTime = timestamp;
+
   if(gameOver){
     cancelAnimationFrame(animationFrameId);
     return;
   }
+
   movePlayerCells();
   moveSplitCells();
   botsAI();
   eatCheck();
+  updateCamera();
   draw();
   updateLeaderboard();
+
+  if(performance.now() - gameStartTime > GAME_DURATION_MS){
+    endGame(true);
+    return;
+  }
+
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// === START BTN ===
+// === BUTTON START ===
 startBtn.addEventListener("click", () => {
-  if(!pseudoInput.value.trim()){
-    alert("Choisis un pseudo !");
-    return;
+  if(resetGame()){
+    menu.style.display = "none";
+    gameContainer.style.display = "block";
+    lastTime = 0;
+    animationFrameId = requestAnimationFrame(gameLoop);
   }
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
-  resetGame();
-  animationFrameId = requestAnimationFrame(gameLoop);
 });
 
-showMenu();
+// === Initial affichage du score et stats ===
+updateLevelStats();
