@@ -1,18 +1,20 @@
+/* style.css */
+
 /* Reset & base */
 html, body {
   margin: 0;
-  overflow: hidden;
-  background: #111;
-  font-family: Arial, sans-serif;
+  padding: 0;
   height: 100%;
+  background: #111;
   color: white;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-user-select: none;
-  user-select: none;
-  touch-action: none; /* évite scroll/touch non voulu */
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-#menu {
+/* Conteneur menu principal */
+.menu-container {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -21,28 +23,50 @@ html, body {
   padding: 30px 50px;
   border-radius: 10px;
   text-align: center;
-  width: 320px;
-  box-sizing: border-box;
   user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
+  width: 320px;
+  max-width: 90vw;
+  box-sizing: border-box;
+  box-shadow: 0 0 15px #00ff00aa;
 }
 
-#menu input[type=text], #menu input[type=color] {
+/* Logo SVG */
+#logo {
+  margin-bottom: 20px;
+}
+
+/* Inputs texte et couleur */
+.menu-container input[type="text"],
+.menu-container input[type="color"] {
   font-size: 18px;
   padding: 8px;
   margin-top: 10px;
   width: 200px;
+  max-width: 90%;
   border-radius: 5px;
   border: none;
   outline: none;
   box-sizing: border-box;
+  transition: box-shadow 0.3s ease;
 }
 
-#menu button {
+.menu-container input[type="text"]:focus,
+.menu-container input[type="color"]:focus {
+  box-shadow: 0 0 8px #00ff00;
+}
+
+/* Statistiques */
+.stats-container {
   margin-top: 15px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* Bouton jouer */
+.menu-container button {
+  margin-top: 20px;
   font-size: 18px;
-  padding: 10px 20px;
+  padding: 12px 25px;
   cursor: pointer;
   border-radius: 5px;
   border: none;
@@ -51,65 +75,67 @@ html, body {
   transition: background 0.3s ease;
   user-select: none;
 }
-#menu button:hover, #menu button:focus {
+
+.menu-container button:hover,
+.menu-container button:focus {
   background: #399d3b;
   outline: none;
 }
 
+/* Conteneur jeu */
 #gameContainer {
   width: 100vw;
   height: 100vh;
   position: relative;
-  touch-action: none;
+  overflow: hidden;
 }
 
-canvas {
+/* Canvas */
+canvas#game {
   display: block;
   background: #222;
   width: 100vw;
   height: 100vh;
-  touch-action: none;
-  user-select: none;
+  outline: none;
+  touch-action: none; /* Empêche zoom/pan sur mobile pour mieux gérer le toucher */
 }
 
+/* HUD - score et timer */
 #hud {
   position: absolute;
   top: 10px;
   right: 10px;
   text-align: right;
   font-size: 16px;
+  user-select: none;
   font-weight: bold;
   color: #00ff00;
   text-shadow: 0 0 5px #00ff00aa;
-  user-select: none;
-  pointer-events: none;
+  pointer-events: none; /* Pour que les clics passent au canvas */
+  max-width: 90vw;
 }
 
+/* Espacement entre éléments HUD */
 #hud > div {
   margin-bottom: 5px;
 }
 
-/* Modale message */
-#modalMessage {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0,0,0,0.9);
-  color: #0f0;
-  padding: 25px 45px;
-  border-radius: 12px;
-  font-size: 20px;
-  text-align: center;
-  user-select: none;
-  z-index: 9999;
-  box-shadow: 0 0 15px #0f0aa;
-  max-width: 90vw;
-  cursor: pointer;
-}
-
-/* Animations bonus (optionnel) */
-@keyframes pulseGlow {
-  0%, 100% { filter: drop-shadow(0 0 5px red); }
-  50% { filter: drop-shadow(0 0 15px yellow); }
+/* Responsive - menu centré et taille adaptée */
+@media screen and (max-width: 480px) {
+  .menu-container {
+    padding: 20px 30px;
+    width: 90vw;
+  }
+  .menu-container input[type="text"],
+  .menu-container input[type="color"] {
+    width: 100%;
+  }
+  .menu-container button {
+    width: 100%;
+  }
+  #hud {
+    font-size: 14px;
+    right: 5px;
+    top: 5px;
+  }
 }
