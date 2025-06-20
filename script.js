@@ -141,13 +141,11 @@ function createBot(minRadius = 30) {
 function spawnBots(initial = true) {
   if (initial) bots = [];
   while (bots.length < MAX_BOTS) {
-    // Dès le début, spawn bots gros (minRadius = player radius + 10)
     const minRadius = playerCells[0]?.r ? playerCells[0].r + 10 : 30;
     bots.push(createBot(minRadius));
   }
 }
 function respawnBot(bot){
-  // Lors du respawn, le bot est plus gros que le joueur principal
   const playerMainR = playerCells[0]?.r || 20;
   const newRadius = playerMainR + 10 + Math.random() * 20;
   Object.assign(bot, {
@@ -320,7 +318,6 @@ function removeBot(index){
     respawnBot(bot);
   }, 2000);
 
-  // Enlever du jeu
   bot.x = 99999;
   bot.y = 99999;
   bot.r = 0;
@@ -366,6 +363,8 @@ function eatCheck(){
         alert("Tu as été mangé ! Réessaie.");
         stats.losses++;
         localStorage.setItem("losses", stats.losses);
+        menu.style.display = "block";
+        gameContainer.style.display = "none";
         resetGame();
       }
     }
@@ -443,6 +442,8 @@ function draw(){
     alert("Temps écoulé ! Ton score final : " + Math.floor(totalScore));
     stats.wins++;
     localStorage.setItem("wins", stats.wins);
+    menu.style.display = "block";
+    gameContainer.style.display = "none";
     resetGame();
   }
 }
@@ -463,13 +464,12 @@ function resetGame(){
     dy: 0
   }];
   spawnFood();
-  spawnBots(true); // spawn bots gros dès le début
+  spawnBots(true);
   bonuses = [];
   gameStartTime = performance.now();
   gameOver = false;
   updateMenuStats();
-  menu.style.display = "block";
-  gameContainer.style.display = "none";
+  // Ne rien faire ici avec l'affichage
 }
 
 // === UPDATE MENU STATS ===
@@ -523,7 +523,7 @@ startBtn.onclick = () => {
   gameContainer.style.display = "block";
   spawnFood();
   spawnBots();
-  spawnVirus();
+  // spawnVirus(); // si tu as une fonction spawnVirus, sinon commente
   bonuses = [];
   gameStartTime = performance.now();
   gameOver = false;
