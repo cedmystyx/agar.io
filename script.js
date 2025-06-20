@@ -102,7 +102,7 @@ resizeCanvas();
 
 // === SPAWN FOOD ===
 function spawnFood() {
-  foods = [];
+  foods.length = 0; // plus rapide que new array
   for(let i=0; i < FOOD_COUNT; i++){
     foods.push({
       x: (Math.random() - 0.5) * MAP_SIZE,
@@ -139,7 +139,7 @@ function createBot(minRadius = 30) {
   };
 }
 function spawnBots(initial = true) {
-  if (initial) bots = [];
+  if (initial) bots.length = 0;
   while (bots.length < MAX_BOTS) {
     const minRadius = playerCells[0]?.r ? playerCells[0].r + 10 : 30;
     bots.push(createBot(minRadius));
@@ -171,15 +171,18 @@ function clampPosition(entity){
 // === DÉPLACEMENT JOUEUR ===
 function getMouseWorldPos(){
   if(playerCells.length === 0) return {x: 0, y:0};
+  const mainCell = playerCells[0];
   return {
-    x: (mouse.x - canvas.width / 2) / cameraZoom + playerCells[0].x,
-    y: (mouse.y - canvas.height / 2) / cameraZoom + playerCells[0].y,
+    x: (mouse.x - canvas.width / 2) / cameraZoom + mainCell.x,
+    y: (mouse.y - canvas.height / 2) / cameraZoom + mainCell.y,
   };
 }
 
 function movePlayerCells(){
   const now = performance.now();
-  playerCells.forEach((cell, idx) => {
+  // boucle inverse pour éviter bugs splice lors fusion
+  for(let idx = playerCells.length - 1; idx >= 0; idx--){
+    const cell = playerCells[idx];
     let target;
     if(idx === 0){
       target = getMouseWorldPos();
@@ -190,9 +193,7 @@ function movePlayerCells(){
     const dy = target.y - cell.y;
     const distance = Math.hypot(dx, dy);
     let speed = cell.speed || PLAYER_BASE_SPEED;
-    if(idx !== 0){
-      speed *= 1.2; // split cells plus rapides
-    }
+    if(idx !== 0) speed *= 1.2; // split cells plus rapides
     if(distance > 1){
       const moveDist = Math.min(distance, speed);
       cell.x += (dx / distance) * moveDist;
@@ -209,7 +210,7 @@ function movePlayerCells(){
       }
     }
     cell.r = lerp(cell.r, cell.targetR, FUSION_SPEED);
-  });
+  }
 }
 
 // === SPLIT JOUEUR ===
@@ -264,14 +265,14 @@ function botsAI(){
       possibleTargets.push(...foods);
 
       // Cibles bots plus petits que lui
-      bots.forEach(otherBot => {
+      for(const otherBot of bots){
         if(otherBot !== bot && !otherBot.respawnTimeout && otherBot.r < bot.r * 0.9){
           possibleTargets.push(otherBot);
         }
-      });
+      }
 
       // Joueur : bots ciblent cellules plus petites et fuient cellules plus grosses
-      playerCells.forEach(cell => {
+      for(const cell of playerCells){
         if(cell.r < bot.r * 0.9 && !gameOver){
           possibleTargets.push(cell);
         }
@@ -281,7 +282,7 @@ function botsAI(){
           const fleeY = bot.y - (cell.y - bot.y);
           possibleTargets.push({x: fleeX, y: fleeY, isPoint:true});
         }
-      });
+      }
 
       // Cibles aléatoires pour errer
       for(let i=0; i<5; i++){
@@ -330,8 +331,8 @@ function removeBot(index){
 function eatCheck(){
   // Joueur mange nourriture
   for(let i = foods.length - 1; i >= 0; i--){
-    let food = foods[i];
-    for(let cell of playerCells){
+    const food = foods[i];
+    for(const cell of playerCells){
       if(dist(cell, food) < cell.r + food.r){
         foods.splice(i, 1);
         cell.targetR = Math.min(MAX_PLAYER_RADIUS, cell.targetR + 0.5);
@@ -343,10 +344,10 @@ function eatCheck(){
 
   // Joueur mange bots plus petits
   for(let i = bots.length - 1; i >= 0; i--){
-    let bot = bots[i];
+    const bot = bots[i];
     if(bot.respawnTimeout) continue;
-    for(let cell of playerCells){
-      if(bot !== cell && dist(cell, bot) < cell.r && cell.r > bot.r * 1.1){
+    for(const cell of playerCells){
+      if(dist(cell, bot) < cell.r && cell.r > bot.r * 1.1){
         cell.score += Math.floor(bot.r);
         cell.targetR = Math.min(MAX_PLAYER_RADIUS, cell.targetR + bot.r * 0.6);
         removeBot(i);
@@ -356,9 +357,9 @@ function eatCheck(){
   }
 
   // Bots mangent joueur plus petits
-  bots.forEach(bot => {
-    if(bot.respawnTimeout) return;
-    for(let cell of playerCells){
+  for(const bot of bots){
+    if(bot.respawnTimeout) continue;
+    for(const cell of playerCells){
       if(dist(bot, cell) < bot.r && bot.r > cell.r * 1.1 && !gameOver){
         gameOver = true;
         alert("Tu as été mangé ! Réessaie.");
@@ -367,9 +368,10 @@ function eatCheck(){
         menu.style.display = "block";
         gameContainer.style.display = "none";
         resetGame();
+        return; // Stop après gameOver
       }
     }
-  });
+  }
 }
 
 // === DESSIN CELLULE ===
@@ -404,6 +406,8 @@ function drawCell(entity, options = {}) {
 function draw(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  if(playerCells.length === 0) return; // safeguard
+
   const mainCell = playerCells[0];
   cameraZoom = 1 / (mainCell.r / 50);
   cameraZoom = clamp(cameraZoom, 0.3, 1.2);
@@ -414,23 +418,26 @@ function draw(){
   ctx.translate(-mainCell.x, -mainCell.y);
 
   // Nourriture
-  foods.forEach(food => drawCell(food, {emoji: food.emoji, color: "#66bb66"}));
+  for(const food of foods){
+    drawCell(food, {emoji: food.emoji, color: "#66bb66"});
+  }
 
   // Bots
-  bots.forEach(bot => {
-    if(bot.respawnTimeout) return;
+  for(const bot of bots){
+    if(bot.respawnTimeout) continue;
     drawCell(bot, {color: bot.color});
-  });
+  }
 
   // Joueur
-  playerCells.forEach(cell => {
+  for(const cell of playerCells){
     drawCell(cell, {color: cell.color});
-  });
+  }
 
   ctx.restore();
 
   // HUD
-  let totalScore = playerCells.reduce((sum, c) => sum + c.score, 0);
+  let totalScore = 0;
+  for(const c of playerCells) totalScore += c.score;
   scoreDiv.textContent = "Score : " + Math.floor(totalScore);
 
   const elapsed = Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime));
@@ -475,6 +482,7 @@ function resetGame(){
 
 // === UPDATE MENU STATS ===
 function updateMenuStats(){
+  if(playerCells.length === 0) return;
   const mainCell = playerCells[0];
   menuLevelSpan.textContent = Math.floor(mainCell.r);
   menuGradeSpan.textContent = getGrade(mainCell.r);
@@ -524,7 +532,6 @@ startBtn.onclick = () => {
   gameContainer.style.display = "block";
   spawnFood();
   spawnBots();
-  // spawnVirus(); // si tu as une fonction spawnVirus, sinon commente
   bonuses = [];
   gameStartTime = performance.now();
   gameOver = false;
