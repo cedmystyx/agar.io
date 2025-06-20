@@ -8,9 +8,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 <body>
-  <div id="menu" style="text-align:center; padding-top: 20px;">
-    <div id="logo">
-      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="120" viewBox="0 0 500 120">
+  <main id="menu" role="main" aria-label="Menu de jeu" class="menu-container">
+    <div id="logo" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="120" viewBox="0 0 500 120" role="img" aria-label="Logo Mytox.io">
         <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
               font-family="Impact, Arial Black, sans-serif"
               font-size="60"
@@ -30,26 +30,29 @@
     </div>
 
     <label for="pseudo">Pseudo :</label><br />
-    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" autocomplete="off"/><br />
+    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" autocomplete="off" aria-label="Pseudo du joueur" /><br />
+
     <label for="colorPicker">Choisis ta couleur :</label><br />
-    <input type="color" id="colorPicker" value="#00ff00" /><br />
-    <div>
+    <input type="color" id="colorPicker" value="#00ff00" aria-label="Couleur du joueur" /><br />
+
+    <div aria-live="polite" aria-atomic="true" class="stats-container">
       <strong>Niveau :</strong> <span id="menuLevel">-</span><br />
       <strong>Grade :</strong> <span id="menuGrade">-</span><br />
       <strong>Victoires :</strong> <span id="menuWins">0</span><br />
       <strong>Défaites :</strong> <span id="menuLosses">0</span><br />
     </div>
-    <button id="startBtn">Jouer</button>
-  </div>
 
-  <div id="gameContainer" style="display:none;">
-    <div id="hud">
+    <button id="startBtn" type="button" aria-label="Démarrer la partie">Jouer</button>
+  </main>
+
+  <section id="gameContainer" style="display:none;" role="application" aria-label="Zone de jeu">
+    <div id="hud" aria-live="polite" aria-atomic="true">
       <div id="score">Score : 0</div>
       <div id="timer">Temps restant : 03:00</div>
     </div>
-    <canvas id="game"></canvas>
-  </div>
+    <canvas id="game" tabindex="0" aria-label="Zone de jeu Mytox.io"></canvas>
+  </section>
 
-  <script src="script.js"></script>
+  <script src="script.js" defer></script>
 </body>
 </html>
