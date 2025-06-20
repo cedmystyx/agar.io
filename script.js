@@ -66,8 +66,9 @@ const GRADES = [
 
 function getGrade(level) {
   if (level >= MAX_LEVEL) return GRADES[GRADES.length - 1];
-  const index = Math.floor(level / (MAX_LEVEL / (GRADES.length - 1)));
-  return GRADES[index];
+  const maxIndex = GRADES.length - 2; // dernier avant "Ranked"
+  const index = Math.floor(level / (MAX_LEVEL / maxIndex));
+  return GRADES[Math.min(index, maxIndex)];
 }
 
 // === Input ===
@@ -470,233 +471,95 @@ function drawPlayerCells(offsetX, offsetY){
     // Pseudo joueur (seulement sur la cellule principale)
     if(cell === playerCells[0]){
       ctx.fillStyle = "#000";
-      ctx.font = `${Math.min(cell.r * 1.5, 24) * cameraZoom}px Arial Black`;
+      ctx.font = `${Math.min(cell.r * 1.2, 20) * cameraZoom}px Arial Black`;
       ctx.fillText(cell.pseudo || "Joueur", screenX, screenY);
     }
   });
-
   ctx.restore();
 }
 
-function drawLeaderboard(){
-  leaderboardDiv.innerHTML = "";
-  const sortedPlayers = [...bots, ...playerCells];
-  sortedPlayers.sort((a, b) => (b.score || b.r) - (a.score || a.r));
-  const topPlayers = sortedPlayers.slice(0, 10);
+// === MAIN LOOP ===
+function draw(time = 0){
+  if(gameOver) return;
 
-  topPlayers.forEach((p, i) => {
-    const div = document.createElement("div");
-    div.textContent = `${i + 1}. ${p.name || p.pseudo || "Joueur"} - Score: ${Math.floor(p.score || p.r)}`;
-    leaderboardDiv.appendChild(div);
-  });
-}
+  const delta = time - lastTime;
+  lastTime = time;
 
-let barrierGlowPulse = 0;
-let barrierGlowDirection = 1;
-
-const barrierParticles = [];
-for(let i=0; i < 40; i++){
-  barrierParticles.push({
-    side: ["left","right","top","bottom"][i % 4],
-    offset: Math.random() * MAP_SIZE,
-    speed: 0.3 + Math.random() * 0.7
-  });
-}
-
-function drawBarrier(offsetX, offsetY, deltaTime) {
-  const thickness = 60 * cameraZoom;
-  const inner = thickness / 2;
-
-  ctx.save();
-
-  // Pulsation glow
-  barrierGlowPulse += barrierGlowDirection * deltaTime * 0.005;
-  if(barrierGlowPulse > 1) {
-    barrierGlowPulse = 1;
-    barrierGlowDirection = -1;
-  } else if(barrierGlowPulse < 0) {
-    barrierGlowPulse = 0;
-    barrierGlowDirection = 1;
-  }
-  const glowIntensity = 10 + 10 * barrierGlowPulse;
-
-  ctx.lineWidth = thickness;
-  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-  gradient.addColorStop(0, "#00ff00");
-  gradient.addColorStop(0.5, "#0f0");
-  gradient.addColorStop(1, "#004400");
-  ctx.strokeStyle = gradient;
-
-  ctx.shadowColor = "#00ff00";
-  ctx.shadowBlur = glowIntensity;
-
-  const left = (-HALF_MAP - offsetX) * cameraZoom + canvas.width / 2;
-  const right = (HALF_MAP - offsetX) * cameraZoom + canvas.width / 2;
-  const top = (-HALF_MAP - offsetY) * cameraZoom + canvas.height / 2;
-  const bottom = (HALF_MAP - offsetY) * cameraZoom + canvas.height / 2;
-
-  // Draw solid borders (4 sides)
-  ctx.beginPath();
-  ctx.moveTo(left, top + inner);
-  ctx.lineTo(left, bottom - inner);
-  ctx.moveTo(left + inner, top);
-  ctx.lineTo(right - inner, top);
-  ctx.moveTo(right, top + inner);
-  ctx.lineTo(right, bottom - inner);
-  ctx.moveTo(left + inner, bottom);
-  ctx.lineTo(right - inner, bottom);
-  ctx.stroke();
-
-  // Draw moving particles on border
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "#7fff7f";
-  ctx.shadowBlur = 15;
-
-  barrierParticles.forEach(p => {
-    p.offset += p.speed * deltaTime * 0.001;
-    if(p.offset > MAP_SIZE) p.offset = 0;
-
-    let x1, y1, x2, y2;
-    const size = 20 * cameraZoom;
-
-    switch(p.side) {
-      case "left":
-        x1 = left + thickness/3;
-        y1 = top + p.offset * cameraZoom;
-        x2 = x1;
-        y2 = y1 + size;
-        break;
-      case "right":
-        x1 = right - thickness/3;
-        y1 = bottom - p.offset * cameraZoom;
-        x2 = x1;
-        y2 = y1 - size;
-        break;
-      case "top":
-        x1 = left + p.offset * cameraZoom;
-        y1 = top + thickness/3;
-        x2 = x1 + size;
-        y2 = y1;
-        break;
-      case "bottom":
-        x1 = right - p.offset * cameraZoom;
-        y1 = bottom - thickness/3;
-        x2 = x1 - size;
-        y2 = y1;
-        break;
-    }
-
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  });
-
-  // Draw blinking segments on borders
-  ctx.lineWidth = thickness / 4;
-  const segmentLength = MAP_SIZE / 10;
-
-  for(let i=0; i < 10; i++) {
-    const phase = (performance.now() / 500 + i) % 2;
-    const alpha = 0.5 + 0.5 * Math.sin(phase * Math.PI);
-
-    ctx.strokeStyle = `rgba(0,255,0,${alpha.toFixed(2)})`;
-
-    // Top
-    ctx.beginPath();
-    ctx.moveTo(left + i * segmentLength * cameraZoom, top + inner);
-    ctx.lineTo(left + (i+1) * segmentLength * cameraZoom, top + inner);
-    ctx.stroke();
-
-    // Bottom
-    ctx.beginPath();
-    ctx.moveTo(left + i * segmentLength * cameraZoom, bottom - inner);
-    ctx.lineTo(left + (i+1) * segmentLength * cameraZoom, bottom - inner);
-    ctx.stroke();
-
-    // Left
-    ctx.beginPath();
-    ctx.moveTo(left + inner, top + i * segmentLength * cameraZoom);
-    ctx.lineTo(left + inner, top + (i+1) * segmentLength * cameraZoom);
-    ctx.stroke();
-
-    // Right
-    ctx.beginPath();
-    ctx.moveTo(right - inner, top + i * segmentLength * cameraZoom);
-    ctx.lineTo(right - inner, top + (i+1) * segmentLength * cameraZoom);
-    ctx.stroke();
-  }
-
-  ctx.restore();
-}
-
-// === Drawing main loop ===
-function draw(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if(playerCells.length === 0) return;
-
-  updateCameraZoom();
-
-  const offsetX = playerCells[0].x;
-  const offsetY = playerCells[0].y;
-
-  drawMap(offsetX, offsetY);
-  drawFoods(offsetX, offsetY);
-  drawBots(offsetX, offsetY);
-  drawPlayerCells(offsetX, offsetY);
-  drawLeaderboard();
-
-  // Affiche score et temps
-  scoreDiv.textContent = "Score : " + Math.floor(playerCells[0].score || playerCells[0].r);
-  const elapsed = performance.now() - gameStartTime;
-  const remaining = Math.max(0, GAME_DURATION_MS - elapsed);
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  timerDiv.textContent = `Temps restant : ${minutes}:${seconds.toString().padStart(2, "0")}`;
-
-  if(remaining <= 0) {
-    endGame();
+  if(playerCells.length === 0){
+    requestAnimationFrame(draw);
+    return;
   }
+
+  // Zoom dynamique selon la taille du joueur principal
+  const mainCell = playerCells[0];
+  cameraZoom = lerp(cameraZoom, 50 / mainCell.r, 0.05);
+  cameraZoom = clamp(cameraZoom, 0.2, 1.2);
+
+  drawMap(mainCell.x, mainCell.y);
+
+  drawFoods(mainCell.x, mainCell.y);
+  drawBots(mainCell.x, mainCell.y);
+  drawPlayerCells(mainCell.x, mainCell.y);
+
+  movePlayerCells();
+  moveSplitCells();
+
+  botsAI();
+  eatCheck();
+
+  // Score & grade affichage live
+  const currentScore = Math.floor(mainCell.score || mainCell.r);
+  scoreDiv.textContent = `Score : ${currentScore} | Catégorie : ${getGrade(currentScore)}`;
+
+  // Timer affichage
+  const elapsed = time - gameStartTime;
+  const remainingMs = GAME_DURATION_MS - elapsed;
+  if(remainingMs <= 0){
+    endGame();
+    return;
+  }
+  const minutes = Math.floor(remainingMs / 60000);
+  const seconds = Math.floor((remainingMs % 60000) / 1000);
+  timerDiv.textContent = `Temps restant : ${minutes}:${seconds.toString().padStart(2,"0")}`;
+
+  animationFrameId = requestAnimationFrame(draw);
 }
 
-function updateCameraZoom(){
-  const baseZoom = 1;
-  const maxZoomOut = 0.3;
-  const targetRadius = playerCells[0].r;
-  // Zoom out when player grows to keep them visible
-  cameraZoom = clamp(baseZoom - (targetRadius / MAX_PLAYER_RADIUS) * (baseZoom - maxZoomOut), maxZoomOut, baseZoom);
-}
-
+// === Gestion fin de partie ===
 function endGame(){
   gameOver = true;
+
   cancelAnimationFrame(animationFrameId);
 
   const finalScore = Math.floor(playerCells[0].score || playerCells[0].r);
-  const level = Math.floor(finalScore);
+  const level = finalScore;
   menuLevelSpan.textContent = "Niveau : " + level;
   menuGradeSpan.textContent = "Grade : " + getGrade(level);
-  if(level >= 100){
+
+  if(level >= MAX_LEVEL) {
     stats.wins++;
-    localStorage.setItem("wins", stats.wins);
     menuWinsSpan.textContent = stats.wins;
+    localStorage.setItem("wins", stats.wins);
   } else {
     stats.losses++;
-    localStorage.setItem("losses", stats.losses);
     menuLossesSpan.textContent = stats.losses;
+    localStorage.setItem("losses", stats.losses);
   }
 
-  gameContainer.style.display = "none";
   menu.style.display = "block";
+  gameContainer.style.display = "none";
 }
 
-function resetGame() {
+// === Reset & démarrage ===
+function resetGame(){
   playerCells.length = 0;
   bots.length = 0;
   foods.length = 0;
   bonuses.length = [];
   gameOver = false;
-  cameraZoom = 1;
+  gameStartTime = performance.now();
 
   playerCells.push({
     x: 0,
@@ -708,47 +571,16 @@ function resetGame() {
     score: 0,
     speed: PLAYER_BASE_SPEED,
     shield: false,
-    lastSplit: 0
+    lastSplit: 0,
   });
 
   spawnFood();
   spawnBots();
-  gameStartTime = performance.now();
 
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
-
-  gameLoop();
-}
-
-// === Game loop ===
-function gameLoop(timestamp){
-  if(!lastTime) lastTime = timestamp;
-  const delta = timestamp - lastTime;
-  lastTime = timestamp;
-
-  if(gameOver){
-    cancelAnimationFrame(animationFrameId);
-    return;
-  }
-
-  movePlayerCells();
-  moveSplitCells();
-  botsAI();
-  eatCheck();
-
-  if(playerCells.length === 0){
-    endGame();
-    return;
-  }
-
-  const offsetX = playerCells[0].x;
-  const offsetY = playerCells[0].y;
-
-  draw();
-  drawBarrier(offsetX, offsetY, delta);
-
-  animationFrameId = requestAnimationFrame(gameLoop);
+  menuLevelSpan.textContent = "";
+  menuGradeSpan.textContent = "";
+  timerDiv.textContent = "";
+  scoreDiv.textContent = "Score : 0 | Catégorie : Bronze 1";
 }
 
 startBtn.addEventListener("click", () => {
@@ -756,11 +588,12 @@ startBtn.addEventListener("click", () => {
     alert("Choisis un pseudo !");
     return;
   }
+  menu.style.display = "none";
+  gameContainer.style.display = "block";
   resetGame();
+  draw();
 });
 
-// Initial stats
+// === Initialisation affichage stats ===
 menuWinsSpan.textContent = stats.wins;
 menuLossesSpan.textContent = stats.losses;
-menuLevelSpan.textContent = "Niveau : 0";
-menuGradeSpan.textContent = "Grade : Bronze 1";
