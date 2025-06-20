@@ -368,129 +368,163 @@ function eatCheck(){
         alert("Tu as été mangé ! Réessaie.");
         stats.losses++;
         localStorage.setItem("losses", stats.losses);
-        menu.style.display = "block";
-        gameContainer.style.display = "none";
-        resetGame();
-        return; // Stop après gameOver
+        showMenu();
       }
     }
   }
 }
 
-// === DESSIN CELLULE ===
-function drawCell(entity, options = {}) {
-  ctx.save();
+// === DESSIN ===
+function drawCircle(x, y, r, color, text=null) {
   ctx.beginPath();
-  ctx.fillStyle = options.color || entity.color || "#00ff00";
-  ctx.shadowColor = options.color || entity.color || "#00ff00";
-  ctx.shadowBlur = 10;
-  ctx.arc(entity.x, entity.y, entity.r, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 2;
+  ctx.shadowColor = "#0f0";
+  ctx.shadowBlur = 15;
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+  ctx.stroke();
 
-  if (options.emoji) {
-    ctx.font = `${entity.r}px Arial`;
+  if(text){
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "white";
+    ctx.font = `${r}px Arial Black`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = "white";
-    ctx.fillText(options.emoji, entity.x, entity.y + entity.r * 0.1);
+    ctx.fillText(text, x, y);
   }
-
-  if(entity.shield){
-    ctx.strokeStyle = "cyan";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(entity.x, entity.y, entity.r + 5, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
-// === DESSIN ===
 function draw(){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if(playerCells.length === 0) return; // safeguard
+  if(playerCells.length === 0) return;
 
   const mainCell = playerCells[0];
-  cameraZoom = 1 / (mainCell.r / 50);
-  cameraZoom = clamp(cameraZoom, 0.3, 1.2);
+
+  // Calcul caméra pour centrer le joueur principal
+  const camX = mainCell.x;
+  const camY = mainCell.y;
 
   ctx.save();
-  ctx.translate(canvas.width/2, canvas.height/2);
+  // Translation et zoom caméra
+  ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(cameraZoom, cameraZoom);
-  ctx.translate(-mainCell.x, -mainCell.y);
+  ctx.translate(-camX, -camY);
 
-  // Nourriture
+  // Dessin nourriture
   for(const food of foods){
-    drawCell(food, {emoji: food.emoji, color: "#66bb66"});
+    ctx.font = `${food.r * 1.8}px serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(food.emoji, food.x, food.y);
   }
 
-  // Bots
+  // Dessin bots
   for(const bot of bots){
     if(bot.respawnTimeout) continue;
-    drawCell(bot, {color: bot.color});
+    drawCircle(bot.x, bot.y, bot.r, bot.color);
   }
 
-  // Joueur
+  // Dessin joueur
   for(const cell of playerCells){
-    drawCell(cell, {color: cell.color});
+    drawCircle(cell.x, cell.y, cell.r, cell.color);
   }
 
   ctx.restore();
 
-  // HUD
-  let totalScore = 0;
-  for(const c of playerCells) totalScore += c.score;
-  scoreDiv.textContent = "Score : " + Math.floor(totalScore);
+  // Update HUD score & timer
+  const totalScore = playerCells.reduce((acc, c) => acc + c.score, 0);
+  scoreDiv.textContent = `Score : ${Math.floor(totalScore)}`;
+  const elapsed = performance.now() - gameStartTime;
+  const remaining = Math.max(0, GAME_DURATION_MS - elapsed);
+  const minutes = Math.floor(remaining / 60000);
+  const seconds = Math.floor((remaining % 60000) / 1000);
+  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
 
-  const elapsed = Math.max(0, GAME_DURATION_MS - (performance.now() - gameStartTime));
-  const minutes = Math.floor(elapsed / 60000);
-  const seconds = Math.floor((elapsed % 60000) / 1000);
-  timerDiv.textContent = `Temps restant : ${minutes.toString().padStart(2,"0")}:${seconds.toString().padStart(2,"0")}`;
-
-  if(elapsed <= 0){
+  if(remaining <= 0){
     gameOver = true;
-    alert("Temps écoulé ! Ton score final : " + Math.floor(totalScore));
+    alert("Temps écoulé ! Fin de partie.");
     stats.wins++;
     localStorage.setItem("wins", stats.wins);
-    menu.style.display = "block";
-    gameContainer.style.display = "none";
-    resetGame();
+    showMenu();
   }
 }
 
-// === RESET JEU ===
-function resetGame(){
-  playerCells = [{
+// === UPDATE LEADERBOARD ===
+function updateLeaderboard() {
+  const leaderboardList = document.getElementById("leaderboard-list");
+  if (!leaderboardList) return;
+
+  let entries = [];
+
+  // Score total joueur (somme des cellules)
+  const playerScore = playerCells.reduce((acc, c) => acc + c.score, 0);
+  entries.push({ name: "Vous", score: playerScore });
+
+  // Score des bots (ignorer ceux en respawn)
+  for (const bot of bots) {
+    if (bot.respawnTimeout) continue;
+    entries.push({ name: "Bot", score: bot.score });
+  }
+
+  // Tri décroissant
+  entries.sort((a, b) => b.score - a.score);
+
+  // Top 5
+  entries = entries.slice(0, 5);
+
+  leaderboardList.innerHTML = entries.map(e => `<li>${e.name}: ${Math.floor(e.score)}</li>`).join("");
+}
+
+// === DÉBUT & FIN DE PARTIE ===
+function resetGame() {
+  playerCells.length = 0;
+  bots.length = 0;
+  foods.length = 0;
+  bonuses.length = [];
+  gameOver = false;
+  cameraZoom = 1;
+  gameStartTime = performance.now();
+
+  const pseudo = pseudoInput.value.trim();
+  if(!pseudo) {
+    alert("Choisis un pseudo !");
+    showMenu();
+    return;
+  }
+
+  const color = colorPicker.value || "#00ff00";
+
+  // Création cellule joueur principale
+  playerCells.push({
     x: 0,
     y: 0,
     r: 20,
     targetR: 20,
-    color: colorPicker.value,
-    speed: PLAYER_BASE_SPEED,
+    color,
     score: 0,
+    speed: PLAYER_BASE_SPEED,
     shield: false,
     lastSplit: 0,
-    dx: 0,
-    dy: 0
-  }];
+  });
+
   spawnFood();
-  spawnBots(true);
-  bonuses = [];
-  gameStartTime = performance.now();
-  gameOver = false;
-  updateMenuStats();
-  // Ne rien faire ici avec l'affichage
+  spawnBots();
+
+  // Affichage score initial
+  scoreDiv.textContent = "Score : 0";
+  timerDiv.textContent = "Temps restant : 03:00";
 }
 
-// === UPDATE MENU STATS ===
-function updateMenuStats(){
-  if(playerCells.length === 0) return;
-  const mainCell = playerCells[0];
-  menuLevelSpan.textContent = Math.floor(mainCell.r);
-  menuGradeSpan.textContent = getGrade(mainCell.r);
+function showMenu() {
+  menu.style.display = "block";
+  gameContainer.style.display = "none";
   menuWinsSpan.textContent = stats.wins;
   menuLossesSpan.textContent = stats.losses;
+  menuLevelSpan.textContent = "0";
+  menuGradeSpan.textContent = "-";
 }
 
 // === BOUCLE PRINCIPALE ===
@@ -507,36 +541,20 @@ function gameLoop(timestamp){
   botsAI();
   eatCheck();
   draw();
+  updateLeaderboard();
   animationFrameId = requestAnimationFrame(gameLoop);
 }
 
-// === START GAME ===
-startBtn.onclick = () => {
-  const name = pseudoInput.value.trim();
-  if(name.length < 1){
-    alert("Veuillez entrer un pseudo !");
+// === START BTN ===
+startBtn.addEventListener("click", () => {
+  if(!pseudoInput.value.trim()){
+    alert("Choisis un pseudo !");
     return;
   }
-  playerCells = [{
-    x: 0,
-    y: 0,
-    r: 20,
-    targetR: 20,
-    color: colorPicker.value,
-    speed: PLAYER_BASE_SPEED,
-    score: 0,
-    shield: false,
-    lastSplit: 0,
-    dx: 0,
-    dy: 0
-  }];
-  updateMenuStats();
   menu.style.display = "none";
   gameContainer.style.display = "block";
-  spawnFood();
-  spawnBots();
-  bonuses = [];
-  gameStartTime = performance.now();
-  gameOver = false;
+  resetGame();
   animationFrameId = requestAnimationFrame(gameLoop);
-};
+});
+
+showMenu();
