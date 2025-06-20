@@ -7,110 +7,73 @@
   <link rel="icon" href="https://i.imgur.com/GDAdER0.png" type="image/png" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body, html {
-      margin: 0; padding: 0; overflow: hidden; background: #000;
-      font-family: Arial, sans-serif;
-      color: white;
-      user-select: none;
+    body {
+      margin: 0; background: #000; color: #0f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
     }
     #menu {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: #111; padding: 20px; border-radius: 10px; text-align: center;
-      width: 300px;
+      position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.85); border: 2px solid #0f0; padding: 20px; border-radius: 10px;
+      max-width: 320px; text-align: center;
     }
     #gameContainer {
-      position: relative; width: 100vw; height: 100vh;
-      display: none;
-    }
-    #game {
-      width: 100%; height: 100%; display: block;
-      background: #222;
-      cursor: crosshair;
+      width: 100vw; height: 100vh; overflow: hidden;
+      position: relative;
     }
     #hud {
-      position: absolute; top: 10px; left: 10px; z-index: 10;
-      background: rgba(0,0,0,0.5);
-      padding: 8px 12px; border-radius: 8px;
-      font-size: 16px;
-      line-height: 1.4;
-      min-width: 160px;
+      position: absolute; top: 5px; left: 5px; color: #0f0; font-weight: bold; font-size: 16px;
+      user-select: none; z-index: 10;
     }
     #leaderboard {
-      position: absolute; top: 10px; right: 10px; z-index: 10;
-      background: rgba(0,0,0,0.6);
-      padding: 10px 15px;
-      border-radius: 8px;
-      max-width: 220px;
-      font-size: 14px;
-      font-family: monospace;
+      position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7);
+      border: 1px solid #0f0; border-radius: 6px;
+      padding: 6px 12px; font-size: 14px; max-width: 220px;
+      max-height: 300px; overflow-y: auto; font-family: monospace;
+      color: #0f0; user-select: none; z-index: 20;
     }
-    #leaderboard h3 {
-      margin: 0 0 8px 0;
-      font-weight: bold;
-      color: #0f0;
-      font-size: 18px;
-      text-align: center;
-      letter-spacing: 1.5px;
+    canvas#game {
+      display: block;
+      background: #111;
+      outline: none;
+      user-select: none;
     }
-    #leaderboard ol {
-      padding-left: 20px;
-      margin: 0;
+    input, button {
+      font-size: 16px; padding: 6px; margin: 6px 0;
+      border: 1px solid #0f0; background: #000; color: #0f0; border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
     }
-    #leaderboard li {
-      margin-bottom: 6px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      color: #ddd;
-    }
-    #leaderboard li span {
-      float: right;
-      font-weight: bold;
-      color: #0f0;
+    button:hover {
+      background: #0f0; color: #000; cursor: pointer;
     }
   </style>
 </head>
 <body>
-
   <main id="menu" role="main" aria-label="Menu de jeu" class="menu-container">
-    <div id="logo" aria-hidden="true" style="margin-bottom: 20px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="120" viewBox="0 0 500 120" role="img" aria-label="Logo Mytox.io">
-        <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
-              font-family="Impact, Arial Black, sans-serif"
-              font-size="60"
-              fill="url(#toxicGradient)"
-              stroke="#00ff00"
-              stroke-width="1.5"
-              letter-spacing="5">
-          MYTOX.IO
-        </text>
-        <defs>
-          <linearGradient id="toxicGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:#00ff00; stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#007f00; stop-opacity:1" />
-          </linearGradient>
-        </defs>
-      </svg>
+    <h1 style="margin:0 0 12px 0;">MYTOX.IO</h1>
+
+    <label for="pseudo">Pseudo :</label>
+    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" autocomplete="off" aria-label="Pseudo du joueur" />
+
+    <label for="colorPicker">Choisis ta couleur :</label>
+    <input type="color" id="colorPicker" value="#00ff00" aria-label="Couleur du joueur" />
+
+    <div aria-live="polite" aria-atomic="true" class="stats-container" style="margin-top:10px; text-align:left;">
+      <strong>Niveau :</strong> <span id="menuLevel">-</span><br />
+      <strong>Grade :</strong> <span id="menuGrade">-</span><br />
+      <strong>Victoires :</strong> <span id="menuWins">0</span><br />
+      <strong>Défaites :</strong> <span id="menuLosses">0</span><br />
     </div>
-
-    <label for="pseudo">Pseudo :</label><br />
-    <input type="text" id="pseudo" placeholder="Ton pseudo" maxlength="15" autocomplete="off" aria-label="Pseudo du joueur" /><br /><br />
-
-    <label for="colorPicker">Choisis ta couleur :</label><br />
-    <input type="color" id="colorPicker" value="#00ff00" aria-label="Couleur du joueur" /><br /><br />
 
     <button id="startBtn" type="button" aria-label="Démarrer la partie">Jouer</button>
   </main>
 
-  <section id="gameContainer" role="application" aria-label="Zone de jeu">
+  <section id="gameContainer" style="display:none;" role="application" aria-label="Zone de jeu">
     <div id="hud" aria-live="polite" aria-atomic="true">
       <div id="score">Score : 0</div>
       <div id="timer">Temps restant : 03:00</div>
     </div>
-    <div id="leaderboard" aria-label="Classement">
-      <h3>Leaderboard</h3>
-      <ol id="leaderboardList"></ol>
-    </div>
+    <div id="leaderboard" aria-label="Classement des joueurs"></div>
     <canvas id="game" tabindex="0" aria-label="Zone de jeu Mytox.io"></canvas>
   </section>
 
